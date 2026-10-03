@@ -1,0 +1,17 @@
+-- Macro for Trinket(14) and Gloves(10) if you have  [Engineering: Hyperspeed Accelerators]
+#showtooltip 14
+/use 14
+/use 10
+
+
+
+-- Macro for Trinket(13) and Gloves(10) if you have  [Engineering: Hyperspeed Accelerators]
+#showtooltip 13
+/use 13
+/use 10
+
+
+
+-- Gloves(10) if you have  [Engineering: Hyperspeed Accelerators]
+#showtooltip 10
+/use 10

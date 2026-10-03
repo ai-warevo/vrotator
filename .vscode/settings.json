@@ -1,0 +1,14 @@
+{
+    "files.exclude": {
+        "**/build": true,
+        "**/.cmake": true,
+        "**/Blizzard_*": true,
+        "**/!Astrolabe": true,
+        "**/Cheese": true,
+        "**/mapster": true,
+        "**/mod-*": true,
+        "**/Multibot": true,
+        "**/Recount*": true,
+        "**/SetXpBar": true
+    }
+}
