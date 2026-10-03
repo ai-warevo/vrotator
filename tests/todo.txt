@@ -1,0 +1,97 @@
+Покрытие тестами Data-Driven фреймворка с нулевой аллокацией памяти — это отличный шаг для обеспечения релиза без регрессий. Поскольку система состоит из двух изолированных сред (компилируемый C++17 Native Core и интерпретируемый Lua 5.1 Sandbox в клиенте игры), стратегии тестирования будут принципиально отличаться.
+Ниже представлен детальный архитектурный план по реализации и подключению тестирования, разбитый на два файла документации: один для папки tests/ в корне (C++), второй — для папки vrotator/tests/ (Lua).
+------------------------------
+## 🗺️ Глобальный план реализации тестового покрытия## 🧪 Часть 1: Тестирование C++ Нативного Ядра (tests/README.md)
+Для C++ мы развернем легковесный, современный и состоящий из одного заголовочного файла фреймворк Catch2 (версии v2.x для полной совместимости с C++17 без внешних зависимостей) или Google Test. Так как цель — 0ms overhead, мы покроем тестами чистоту распаковки бит, парсинг скан-кодов и логику плоских защитных условий (Guard Clauses).
+
+   1. Unit-тесты для InputEngine: Проверка, что битовая маска G (от 0 до 7) правильно распаковывается в структуры INPUT (нажатия Shift/Ctrl/Alt).
+   2. Unit-тесты для WindowManager: Эмуляция различных заголовков окон (включая ложные срабатывания и аномально длинные строки) для проверки защиты от переполнения стека в std::array<char, 256>.
+   3. Интеграция в CMake: Подключение через add_executable и enable_testing() для запуска через команду ctest.
+
+## 🌙 Часть 2: Тестирование Lua Фреймворка Аддона (vrotator/tests/README.md)
+Поскольку аддон выполняется внутри закрытого API игры, стандартные инструменты (вроде подгрузки внешних библиотек через Lua Rocks) использовать нельзя. Мы напишем собственный легковесный изолированный Test Runner (Тест-Менеджер) прямо на чистом Lua, который будет симулировать Blizzard API (GetSpellCooldown, GetItemInfo, UnitBuff), скармливать фреймворку тестовые матрицы и выводить результаты («PASSED» / «FAILED») прямо в чат игры или лог.
+
+   1. Mock-слой для Blizzard API: Изоляция функций ядра от реального игрового мира. Мы подменим таблицы кулдаунов и аур контролируемыми тестовыми данными.
+   2. Тесты для Scanner.Parser: Проверка регулярных выражений на разбор сложных макросов, русских локализаций команд /use / /заклинание и вырезание модификаторов.
+   3. Тесты для Executor и IsGCD: Проверка того, что окно Spell Queue в 300 мс и новый безопасный сетевой коридор ГКД (duration <= 2.0) отрабатывают без ложных пропусков.
+
+------------------------------
+## 📄 Спецификация 1: tests/README.md (C++ Testing Manifest)
+Создай файл tests/README.md со следующим содержимым:
+
+# vRotator Native Core Test Suite (`/tests`)
+
+This directory houses the isolated integration tests and unit component test vectors for the native compiled C++17 Win32 background worker. The test suite leverages a single-header instance of the Catch2 framework to maintain zero external compilation dependencies and ensure strict validation of the hot-path execution blocks.
+## 🏗️ Test Workspace Topology```text
+tests/
+├── catch.hpp             # Catch2 v2.x single-header testing framework
+├── test_main.cpp         # Test entry point compiling the Catch2 engine runner
+├── test_input_engine.cpp # Unit tests validating arithmetic modifier unpacking
+├── test_window_manager.cpp# Unit tests validating stack-allocated title boundaries
+└── README.md             # This C++ testing architecture specification
+```
+## 🛠️ Automated Compilation & Execution Layout
+To compile and execute the native test suite, pass the testing flag to the top-level CMake configuration. This builds an independent target binary `vrotator_tests` straight into the `build/` root directory:
+```bash
+# Configure and build both target binary and tests execution blocks
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_VROTATOR_TESTS=ON
+cmake --build build --config Release
+
+# Execute tests via CMake Test Driver Configuration Engine
+cd build
+ctest --output-on-failure
+```
+## 📋 Core Test Vector Specifications
+### 1. Bitmask Payload Deconstruction (`test_input_engine.cpp`)
+Validates that the input processing logic correctly unpacks packed arithmetic integer modifier codes from the Green (`G`) channel without dropping sequential states:
+* **Vector 0 (No Modifiers):** Payload `0` must generate exactly 2 hardware key events (`KeyDown` -> `KeyUp`) for the base key.
+* **Vector 3 (Shift + Ctrl):** Payload `3` must unpack into exactly 6 sequentially grouped events (`Shift Down` -> `Ctrl Down` -> `Key Down` -> `Key Up` -> `Ctrl Up` -> `Shift Up`).
+* **Vector 7 (Shift + Ctrl + Alt):** Payload `7` must verify execution of all 3 modifiers in the correct inverted stack sequence to ensure protection against system sticky modifications.
+
+### 2. Stack Buffer Invariant Protections (`test_window_manager.cpp`)
+Enforces the safety bounds of the strict heap-free window active state validator logic:
+* **String Matching Verification:** Ensures foreground window title checks accurately match sub-strings containing `World of Warcraft` regardless of borderless offset parameters.
+* **Buffer Overflow Resilience:** Feeds a simulated 512-byte character array mock execution into the validator to guarantee that the `std::array<char, 256>` layout safely caps character reading loops without triggering a thread memory access violation.
+
+------------------------------
+## 📄 Спецификация 2: vrotator/tests/README.md (Lua Testing Manifest)
+Создай файл vrotator/tests/README.md со следующим содержимым:
+
+# vRotator AddOn Pure Lua Simulation Suite (`vrotator/tests`)
+
+This directory implements a lightweight, memory-isolated in-game testing harness designed specifically to validate the reactive state-machine logic, macro parsing regex patterns, and pipeline compilation pipelines within the Blizzard execution sandbox environment.
+## 🏗️ Subsystem Mock Framework Topology```text
+vrotator/tests/
+├── framework.lua         # Lightweight Test Runner orchestrator (Asserts & Log formatters)
+├── mock_blizzard_api.lua # Dynamic override injection layer hooks (Simulates GCD and learned Auras)
+├── test_macro_parser.lua # Test assertions validating text regex patterns and Item ID extractions
+├── test_pipeline_engine.lua # Asserts testing the 300ms Spell Queue and state transitions
+└── README.md             # This Lua test automation specification
+```
+## 🚀 Execution & Driver Mechanics
+Because the code executes within the sealed World of Warcraft UI thread environment, the tests are triggered via a dedicated client slash command router interface.
+
+Type the following deployment command directly into the in-game chat box to run the suite:```text
+/vrt test
+```
+
+The runtime suite captures the engine namespaces, detaches the production bindings, injects the state mock table drivers, runs the compilation checks, and prints clean visual pass/fail logging results directly into the client chat frame.
+## 📋 Lua Test Vector Specifications
+### 1. Macro Deconstruction Matrix (`test_macro_parser.lua`)
+Ensures that string mutations and regex extractions execute deterministically regardless of localization or conditional modifiers:
+* **Cyrillic Command Extraction:** Tests if `/заклинание Ледяной доспех` maps cleanly to its corresponding numeric ID.
+* **Bracket Conditional Truncation:** Feeds text containing execution conditions like `/cast [target=focus, harm] Fireball` to ensure it strips brackets down to the target key without dropping characters.
+* **Asynchronous Non-blocking Item Lookups:** Validates that item string names (e.g., `/use Sapphire Mana Gem`) resolve into explicit numeric entries like `"item:33312"`.
+
+### 2. Spell Queue Window & GCD Network Padding (`test_pipeline_engine.lua`)
+Validates that runtime execution blocks maintain structural boundaries during combat transitions:
+* **GCD Safety Ceiling Check:** Simulates a server latency lag spike where `GetSpellCooldown` returns a duration of `1.64` seconds, confirming that the `VRT.State.IsGCD()` logic returns `true` and flushes the pixel color to zero.
+* **300ms Spell Queue Integration:** Mocks an active cast bar with exactly `250ms` remaining until completion, verifying that `ExecutePipelineNode` evaluates this state as open, bypasses calculations, and immediately pushes the next output token to the signaling layer.
+
+------------------------------
+Если этот архитектурный план тестирования утвержден, дай знать:
+
+* Для какого из двух MD-файлов нам сейчас написать полную программную реализацию кода тестов (src/*.cpp тесты на Catch2 или vrotator/tests/*.lua тестовый фреймворк для чата)?
+* Нужно ли обновить корневой CMakeLists.txt, добавив туда автоматическое скачивание заголовочного файла catch.hpp и линковку тестового бинарника?
+
+

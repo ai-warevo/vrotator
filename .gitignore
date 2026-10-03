@@ -10,6 +10,7 @@
 # 1. Main Infrastructure Config Pointers
 !.gitignore
 !CMakeLists.txt
+!Makefile
 !README.md
 !.vscode/
 !.vscode/*
@@ -23,6 +24,9 @@
 !src/**
 !test/
 !test/**
+!tests/
+!tests/**
+tests/catch2/
 
 # 3. Core Universal Lua Framework
 !vrotator/

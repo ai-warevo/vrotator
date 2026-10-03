@@ -1,7 +1,7 @@
 ## Interface: 30300
 ## Title: vrotator
 ## Notes: Modular auto v Rotator
-## Author: AI Assistant
+## Author: AI VibeQoder
 ## Version: 4.2
 
 # Common
@@ -28,5 +28,11 @@ core\signal.lua
 rotations\mage\spells.lua
 rotations\mage\fire_ttw.lua
 rotations\mage\fire_ffb.lua
+
+# Testing Engine
+tests\framework.lua
+tests\mock_blizzard_api.lua
+tests\test_macro_parser.lua
+tests\test_pipeline_engine.lua
 
 vrotator.lua

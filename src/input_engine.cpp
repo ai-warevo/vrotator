@@ -77,4 +77,11 @@ void SendHardwareInput(const int keyCode, const int modifierCode) {
     DispatchInputBatch(releaseEvents.data(), releaseCount);
 }
 
+#ifdef ENABLE_VROTATOR_TESTS
+namespace InternalTestBridge {
+    INPUT TestBuildKeyEvent(WORD vk, DWORD flags) noexcept {
+        return BuildKeyEvent(vk, flags);
+    }
+}
+#endif
 } // namespace VRT::InputEngine

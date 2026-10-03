@@ -146,6 +146,15 @@ end
 ---
 SLASH_VROTATOR1 = "/vrt"
 SlashCmdList["VROTATOR"] = function(msg)
+    if msg and string.lower(string.trim(msg)) == "test" then
+        if VRT.Tests and VRT.Tests.RunAll then
+            VRT.Tests.RunAll()
+        else
+            VRT.Utils.Log("Testing subsystem components are missing or failed to compile.")
+        end
+        return
+    end
+
     isEnabled = not isEnabled
     
     local handler = isEnabled and StartVrotator or StopVrotator
