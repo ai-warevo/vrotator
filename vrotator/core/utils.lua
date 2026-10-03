@@ -16,7 +16,6 @@ end
 -- @return string Resolved spec tracking naming key registered within the framework index mapping.
 ---
 function VRT.Utils.DetectPlayerSpec()
-    VRT.Utils.Log("ekkek")
     local _, classFilename = UnitClass("player")
     local playerClass = classFilename:lower()
     
