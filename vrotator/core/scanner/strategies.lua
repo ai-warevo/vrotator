@@ -27,7 +27,11 @@ Strategies["macro"] = function(id, bind, barPrefix, slotIndex, localizedName)
     if not macroName then return nil, nil end
     
     local finalKey, isItemSlot = VRT.Scanner.Parser.ParseMacro(GetMacroBody(id))
-    finalKey = finalKey or macroName
+    
+    if not finalKey then
+        VRT.Utils.Log(string.format("[%s #%d] Warning: Macro '%s' contains no automatable action. Skipped.", barPrefix, slotIndex, macroName))
+        return nil, nil
+    end
     
     if isItemSlot then
         VRT.Utils.Log(string.format("[%s #%d] Macro Item Slot: %s -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
@@ -35,7 +39,7 @@ Strategies["macro"] = function(id, bind, barPrefix, slotIndex, localizedName)
         local spellName = GetSpellInfo(finalKey) or macroName
         VRT.Utils.Log(string.format("[%s #%d] Macro Spell ID: %d ('%s') -> Bind: %s", barPrefix, slotIndex, finalKey, spellName, bind))
     else
-        VRT.Utils.Log(string.format("[%s #%d] Macro Name/Item: '%s' -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
+        VRT.Utils.Log(string.format("[%s #%d] Macro Item ID/Slot: '%s' -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
     end
     
     return finalKey, bind
