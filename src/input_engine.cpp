@@ -17,62 +17,77 @@
 #include <windows.h>
 #include <vector>
 
-#include "input_engine.hpp"
-#include <windows.h>
-#include <vector>
-
 namespace VRT::InputEngine {
 
+    // Вспомогательная внутренняя функция — убрали const, чтобы SendInput принимал неконстантный указатель
+    static void SendRawInputBatch(std::vector<INPUT>& inputs) {
+        if (!inputs.empty()) {
+            SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+        }
+    }
+
     void SendHardwareInput(int keyCode, int modifierCode) {
-        // Защитный барьер: если сигнал пустой или невалидный, игнорируем инжекцию
+        // Защитный барьер: если сигнал пустой, мгновенно выходим
         if (keyCode <= 0) {
             return;
         }
 
-        // 1. Конвертируем входящий ASCII-токен из аддона в системный Virtual-Key Code Windows
-        SHORT vkMapped = VkKeyScanA(static_cast<char>(keyCode));
-        WORD vKey = (vkMapped != -1) ? static_cast<WORD>(vkMapped & 0xFF) : static_cast<WORD>(keyCode);
+        // ПРЯМОЙ МАППИНГ: Входящий keyCode уже является валидным Virtual-Key кодом Windows
+        WORD targetVKey = static_cast<WORD>(keyCode);
 
-        // 2. Распаковываем битовую маску зеленого канала: ModifierCode = (Shift * 1) + (Ctrl * 2) + (Alt * 4)
+        // Распаковываем битовую маску модификаторов: (Shift * 1) + (Ctrl * 2) + (Alt * 4)
         bool shift = (modifierCode & 1) != 0;
         bool ctrl  = (modifierCode & 2) != 0;
         bool alt   = (modifierCode & 4) != 0;
 
-        // Динамический массив структур INPUT для сборки единого атомарного пакета
-        std::vector<INPUT> inputs;
-
-        // Вспомогательная лямбда-функция для быстрого и безопасного наполнения вектора событий
-        auto pushKeyEvent = [&](WORD vk, DWORD flags) {
+        // Вспомогательная лямбда для сборки структур INPUT
+        auto buildKeyEvent = [](WORD vk, DWORD flags) -> INPUT {
             INPUT in = {};
             in.type = INPUT_KEYBOARD;
             in.ki.wVk = vk;
-            // Аппаратный скан-код (Hardware Scan Code) — критически важен для обхода защит WoW
             in.ki.wScan = static_cast<WORD>(MapVirtualKeyA(vk, MAPVK_VK_TO_VSC));
             in.ki.dwFlags = flags;
             in.ki.time = 0;
             in.ki.dwExtraInfo = 0;
-            inputs.push_back(in);
+            return in;
         };
 
-        // Действие 1: Физическое зажатие всех активных модификаторов (INPUT_KEYBOARD)
-        if (shift) pushKeyEvent(VK_SHIFT, 0);
-        if (ctrl)  pushKeyEvent(VK_CONTROL, 0);
-        if (alt)   pushKeyEvent(VK_MENU, 0);
+        // ==========================================
+        // ЭТАП 1: ФИЗИЧЕСКОЕ ЗАЖАТИЕ КЛАВИШ (KEYDOWN)
+        // ==========================================
+        std::vector<INPUT> pressBatch;
 
-        // Действие 2: Нажатие основной клавиши бинда способности
-        pushKeyEvent(vKey, 0);
+        // Зажимаем active модификаторы
+        if (shift) pressBatch.push_back(buildKeyEvent(VK_SHIFT, 0));
+        if (ctrl)  pressBatch.push_back(buildKeyEvent(VK_CONTROL, 0));
+        if (alt)   pressBatch.push_back(buildKeyEvent(VK_MENU, 0));
 
-        // Действие 3: Отпускание основной клавиши способности (KEYEVENTF_KEYUP)
-        pushKeyEvent(vKey, KEYEVENTF_KEYUP);
+        // Зажимаем основную клавишу бинда
+        pressBatch.push_back(buildKeyEvent(targetVKey, 0));
 
-        // Действие 4: Отпускание модификаторов в обратном порядке (жесткая защита от залипания стека ОС)
-        if (alt)   pushKeyEvent(VK_MENU, KEYEVENTF_KEYUP);
-        if (ctrl)  pushKeyEvent(VK_CONTROL, KEYEVENTF_KEYUP);
-        if (shift) pushKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP);
+        // Атомарно отправляем фазу нажатия в ОС
+        SendRawInputBatch(pressBatch);
 
-        // Отправляем собранную последовательность напрямую в подсистему ввода Windows ring-0
-        if (!inputs.empty()) {
-            SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
-        }
+        // ==========================================
+        // ЭТАП 2: АППАРАТНЫЙ МИКРО-СОН (ТАЙМИНГ УДЕРЖАНИЯ)
+        // ==========================================
+        // Пауза 10 мс для фиксации модификаторов движком WoW
+        Sleep(10);
+
+        // ==========================================
+        // ЭТАП 3: ФИЗИЧЕСКОЕ ОТПУСКАНИЕ КЛАВИШ (KEYUP)
+        // ==========================================
+        std::vector<INPUT> releaseBatch;
+
+        // Сначала отпускаем основную клавишу способности
+        releaseBatch.push_back(buildKeyEvent(targetVKey, KEYEVENTF_KEYUP));
+
+        // Затем отпускаем модификаторы в обратном порядке (защита от залипания)
+        if (alt)   releaseBatch.push_back(buildKeyEvent(VK_MENU, KEYEVENTF_KEYUP));
+        if (ctrl)  releaseBatch.push_back(buildKeyEvent(VK_CONTROL, KEYEVENTF_KEYUP));
+        if (shift) releaseBatch.push_back(buildKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP));
+
+        // Атомарно отправляем фазу освобождения в ОС
+        SendRawInputBatch(releaseBatch);
     }
 }
