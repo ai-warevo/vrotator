@@ -49,7 +49,7 @@ VRT.RegisterRotation({
                 local start, duration = GetSpellCooldown(Spell.IcyVeins)
                 return (start > 0 and duration > 0)
             end
-        }
+        },
         {
             id   = Spell.FrostfireBolt ,
             cond = nil

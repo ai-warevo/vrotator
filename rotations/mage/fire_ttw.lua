@@ -9,6 +9,9 @@ VRT.RegisterRotation({
     end,
     
     combatPipeline  = {
+        { id = 13, type = "item",  cond = nil },
+        { id = 14, type = "item",  cond = nil },
+        { id = 10, type = "item",  cond = nil },
         {
             id   = Spell.Pyroblast,
             cond = function() 

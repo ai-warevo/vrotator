@@ -54,7 +54,6 @@ function VRT.ScanAllSpellBindingsWithIDs()
                     if actionType == "spell" then
                         local bookIndex = id
                         local realSpellID = nil
-                        
                         local spellLink = GetSpellLink(bookIndex, BOOKTYPE_SPELL)
                         
                         if spellLink then
@@ -65,58 +64,63 @@ function VRT.ScanAllSpellBindingsWithIDs()
                         end
                         
                         realSpellID = realSpellID or bookIndex
-                        
                         idToKeyMap[realSpellID] = bind
                         VRT.Log(string.format("[%s #%d] GLOBAL Spell ID: %d ('%s') -> Bind: %s", barPrefix, i, realSpellID, localizedName, bind))
                         
+                    elseif actionType == "item" then
+                        local itemKey = "item:" .. id
+                        idToKeyMap[itemKey] = bind
+                        VRT.Log(string.format("[%s #%d] DIRECT ITEM Slot/ID: %s ('%s') -> Bind: %s", barPrefix, i, itemKey, localizedName, bind))
+
                     elseif actionType == "macro" then
                         local macroName = GetMacroInfo(id)
                         if macroName then
                             local macroBody = GetMacroBody(id)
-                            local macroSpellID = nil
-                            local localizedName = macroName -- дефолтное имя, если спелл не найдется
+                            local finalKey = macroName -- дефолтный строковый ключ
+                            local isItemSlot = false
                             
                             if macroBody then
-                                -- 1. Парсим строку /cast или /закл (игнорируя регистр)
                                 local castLine = macroBody:match("/[Cc][Aa][Ss][Tt]%s+([^\n]+)")
-                                or macroBody:match("/use%s+([^\n]+)")
-                                or macroBody:match("/[Зз][Aa][Кк][Лл]%s+([^\n]+)")
+                                    or macroBody:match("/[Зз][Aa][Кк][Лл]%s+([^\n]+)")
+                                local useLine = macroBody:match("/[Uu][Ss][Ee]%s+([^\n]+)")
+                                    or macroBody:match("/[Ии][Сс][Пп][Оо][Лл]%s+([^\n]+)")
                                 
                                 if castLine then
-                                    -- 2. Очищаем условия в квадратных скобках вроде [mod:ctrl, harm] или [@cursor]
-                                    -- Убираем всё, что находится внутри [], вместе со скобками
-                                    local cleanCast = castLine:gsub("%b[]", "")
-                                    
-                                    -- 3. Если макрос сложный (через точку с запятой Spell1; Spell2), берем первое заклинание
-                                    cleanCast = cleanCast:match("([^;]+)")
-                                    
+                                    local cleanCast = castLine:gsub("%b[]", ""):match("([^;]+)")
                                     if cleanCast then
-                                        -- Удаляем лишние пробелы в начале и конце названия спелла
                                         cleanCast = cleanCast:gsub("^%s*", ""):gsub("%s*$", "")
-                                        
-                                        -- 4. Пытаемся получить глобальный Spell ID по чистому имени заклинания
                                         local spellLink = GetSpellLink(cleanCast)
                                         if spellLink then
                                             local parsedID = spellLink:match("spell:(%d+)")
-                                            if parsedID then 
-                                                macroSpellID = tonumber(parsedID)
-                                                -- Заменяем имя макроса на реальное название спелла для логов
-                                                localizedName = GetSpellInfo(macroSpellID) or localizedName
-                                            end
+                                            if parsedID then finalKey = tonumber(parsedID) end
+                                        end
+                                    end
+                                elseif useLine then
+                                    local cleanUse = useLine:gsub("%b[]", ""):match("([^;]+)")
+                                    if cleanUse then
+                                        cleanUse = cleanUse:gsub("^%s*", ""):gsub("%s*$", "")
+                                        local slotNumber = tonumber(cleanUse)
+                                        
+                                        -- Если это номер слота шмотки (10, 13, 14)
+                                        if slotNumber then
+                                            finalKey = "item:" .. slotNumber
+                                            isItemSlot = true
+                                        else
+                                            -- Если в /use написано текстовое имя вещи вместо номера слота
+                                            finalKey = cleanUse
                                         end
                                     end
                                 end
                             end
                             
-                            -- Если нашли Spell ID внутри макроса, пишем под числовым ключом. 
-                            -- Если нет (например, макрос на юз тринкета/предмета) — оставляем имя макроса.
-                            local finalKey = macroSpellID or macroName
                             idToKeyMap[finalKey] = bind
                             
-                            if macroSpellID then
-                                VRT.Log(string.format("[%s #%d] Macro Spell ID: %d ('%s') -> Bind: %s", barPrefix, i, macroSpellID, localizedName, bind))
+                            if isItemSlot then
+                                VRT.Log(string.format("[%s #%d] Macro Item Slot: %s -> Bind: %s", barPrefix, i, finalKey, bind))
+                            elseif type(finalKey) == "number" then
+                                VRT.Log(string.format("[%s #%d] Macro Spell ID: %d ('%s') -> Bind: %s", barPrefix, i, finalKey, localizedName, bind))
                             else
-                                VRT.Log(string.format("[%s #%d] Macro Name: '%s' -> Bind: %s", barPrefix, i, macroName, bind))
+                                VRT.Log(string.format("[%s #%d] Macro Name/Item: '%s' -> Bind: %s", barPrefix, i, tostring(finalKey), bind))
                             end
                         end
                     end

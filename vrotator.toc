@@ -9,5 +9,6 @@ core\utils.lua
 core\scanner.lua
 core\signal.lua
 rotations\mage\spells.lua
-rotations\mage\fire.lua
+rotations\mage\fire_ttw.lua
+rotations\mage\fire_ffb.lua
 vrotator.lua

@@ -106,6 +106,16 @@ local function ExecutePipelineNode(node)
     return false
 end
 
+local function IsNodeReady(node)
+    if node.type == "item" then
+        local start, duration = GetInventoryItemCooldown("player", node.id)
+        return (start == 0 and duration == 0)
+    else
+        local start, duration = GetSpellCooldown(node.id)
+        return (start == 0 and duration == 0)
+    end
+end
+
 function VRT.RegisterRotation(config)
     if not config.name then return end
 
@@ -114,14 +124,15 @@ function VRT.RegisterRotation(config)
         IsActive = config.isActive
     }
 
-    -- 1. Автоматическая сборка боевой ротации (Combat Pipeline)
     if config.combatPipeline then
         instance.Combat = function()
             for i = 1, #config.combatPipeline do
                 local node = config.combatPipeline[i]
-                -- Логика выполнения боевой ноды
-                if not (node.cond and not node.cond()) and VRT.IsSpellReady(node.id) then
-                    local bind = VRT.MyBinds[node.id]
+                
+                if not (node.cond and not node.cond()) and IsNodeReady(node) then
+                    local bindKey = node.type == "item" and ("item:" .. node.id) or node.id
+                    local bind = VRT.MyBinds[bindKey]
+                    
                     if bind then
                         VRT.SendBindSignal(bind)
                         return true
