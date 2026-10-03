@@ -10,40 +10,64 @@
 */
 
 #include "pixel_reader.hpp"
+#include "config.hpp"
 
 namespace VRT::PixelReader {
 
-    // Внутренний RAII-класс для безопасного управления жизненным циклом HDC
-    class DeviceContextWrapper {
+    // Внутренний RAII-класс для жесткой привязки к контексту игрового окна
+    class GameWindowContextWrapper {
     public:
-        DeviceContextWrapper() {
-            // 1. При первом вызове захватываем контекст устройства всего экрана (HDC)
-            m_hdc = GetDC(NULL);
+        GameWindowContextWrapper() {
+            InitializeContext();
         }
 
-        ~DeviceContextWrapper() {
-            // 4. Обеспечиваем корректное освобождение контекста при закрытии программы
-            if (m_hdc) {
-                ReleaseDC(NULL, m_hdc);
+        ~GameWindowContextWrapper() {
+            ReleaseContext();
+        }
+
+        HDC GetContext() {
+            // Проверяем валидность хэндла окна. Если игра была перезапущена,
+            // или хэндл инвалидировался — переинициализируем контекст на лету
+            if (!m_hwnd || !IsWindow(m_hwnd)) {
+                ReleaseContext();
+                InitializeContext();
+            }
+            return m_hdc;
+        }
+
+    private:
+        HWND m_hwnd = nullptr;
+        HDC  m_hdc  = nullptr;
+
+        void InitializeContext() {
+            // Ищем окно по строгому имени из конфигурационного манифеста
+            m_hwnd = FindWindowA(NULL, Config::TARGET_WINDOW_TITLE);
+            if (m_hwnd) {
+                // Получаем DC не всего экрана, а конкретно клиентской области игры
+                m_hdc = GetDC(m_hwnd);
             }
         }
 
-        HDC GetContext() const { return m_hdc; }
-
-    private:
-        HDC m_hdc = nullptr;
+        void ReleaseContext() {
+            if (m_hdc && m_hwnd) {
+                ReleaseDC(m_hwnd, m_hdc);
+            }
+            m_hwnd = nullptr;
+            m_hdc = nullptr;
+        }
     };
 
     COLORREF ReadSignalPixel() {
-        // 3. Кэшируем дескриптор HDC в памяти процесса через статический синглтон
-        static DeviceContextWrapper dcWrapper;
-        HDC hdc = dcWrapper.GetContext();
+        // Кэшируем контекст игрового окна в памяти процесса (Meyers Singleton)
+        static GameWindowContextWrapper windowContext;
+        HDC hdc = windowContext.GetContext();
 
         if (!hdc) {
-            return RGB(0, 0, 0); // Если контекст невалиден, возвращаем черный цвет (IDLE)
+            return RGB(0, 0, 0); // Окно игры не найдено -> возвращаем черный цвет (IDLE)
         }
 
-        // 2. Считываем цвет в абсолютных экранных координатах (0, 0) с помощью GetPixel()
-        return GetPixel(hdc, 0, 0);
+        // Считываем цвет из безопасного центра матрицы 5х5 (смещение на 2 пикселя внутрь).
+        // Теперь координаты (2,2) аппаратно привязаны к внутренней графике WoW.
+        return GetPixel(hdc, 2, 2);
     }
 }
