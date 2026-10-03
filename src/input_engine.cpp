@@ -11,7 +11,7 @@ namespace {
      * @param flags The execution state behavior bitmask flags (e.g., KEYEVENTF_KEYUP).
      * @return A constructed Win32 INPUT event record.
      */
-    [[nodiscard]] constexpr INPUT BuildKeyEvent(const WORD vk, const DWORD flags) noexcept {
+    [[nodiscard]] inline INPUT BuildKeyEvent(const WORD vk, const DWORD flags) noexcept {
         INPUT input{};
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = vk;
@@ -34,8 +34,8 @@ namespace {
     }
 } // namespace
 
-void SendHardwareInput(const int keyCode, const int modifierCode) noexcept {
-    if (keyCode <= 0) [[unlikely]] {
+void SendHardwareInput(const int keyCode, const int modifierCode) {
+    if (keyCode <= 0) {
         return;
     }
 
