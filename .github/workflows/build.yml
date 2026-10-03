@@ -1,0 +1,55 @@
+name: Automated Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers strictly when a version tag is pushed (e.g., v1.0.0)
+
+jobs:
+  matrix_build:
+    name: Compile Core & Package AddOn
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set Up Microsoft Visual Studio Build Tools
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set Up Developer CMake Environment
+        uses: lukka/get-cmake@latest
+
+      - name: Configure CMake Build Meta-Files
+        run: cmake -B build -DENABLE_VROTATOR_TESTS=OFF
+
+      - name: Execute MSVC Monolithic Release Compilation
+        run: cmake --build build --config Release
+
+      - name: Validate Binary Target Existence
+        shell: bash
+        run: |
+          if [ ! -f "build/Release/vrotator_clicker.exe" ]; then
+            echo "Critical Error: Target binary artifact compilation failed!"
+            exit 1
+          fi
+
+      - name: Compress Game AddOn Directory into Archive
+        shell: bash
+        run: |
+          # Compress the vrotator workspace folder directly to avoid double nesting issues
+          powershell Compress-Archive -Path "vrotator" -DestinationPath "build/Release/vrotator_addon.zip" -Force
+
+      - name: Generate Automated GitHub Release Draft
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            build/Release/vrotator_clicker.exe
+            build/Release/vrotator_addon.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
