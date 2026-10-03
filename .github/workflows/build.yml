@@ -47,12 +47,29 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ github.ref_name }}
+          name: Release \${{ github.ref_name }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
+          body: |
+            ## 🚀 Quick Start & Installation Manual
+            
+            ### 1. Client AddOn Deployment
+            * Unpack the compressed `vrotator_addon.zip` archive target straight into your game interface workspace:
+              `%WOW_INSTALLATION_DIR%/Interface/AddOns/`
+            * Verify that the internal structure matches: `AddOns/vrotator/core/`
+            
+            ### 2. In-Game Environment Alignment
+            * Launch the game client and load your character.
+            * **CRITICAL:** Ensure that **EVERY SINGLE SPELL, ITEM, OR AUTOMATION MACRO** is explicitly placed on visible action bars and mapped to physical keyboard key bindings.
+            * Do not forget to load and bind your engineered item/consumable macro configurations as specified in the framework documentation.
+            
+            ### 3. Background Bridge Execution
+            * Run the optimized native binary background worker:
+              `vrotator_clicker.exe`
+            * Keep the active console frame window open during your gaming session to monitor real-time execution telemetry.
           files: |
             build/Release/vrotator_clicker.exe
             build/Release/vrotator_addon.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
