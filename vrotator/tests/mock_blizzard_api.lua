@@ -6,8 +6,9 @@ local originalUnitBuff = UnitBuff
 local originalUnitCastingInfo = UnitCastingInfo
 local originalUnitChannelInfo = UnitChannelInfo
 local originalGetItemInfo = GetItemInfo
+local originalGetSpellLink = GetSpellLink
+local originalGetItemCount = GetItemCount
 
--- In-memory state tracking matrix tables
 VRT.Tests.MockData = {
     cooldowns = {},
     buffs = {},
@@ -17,21 +18,20 @@ VRT.Tests.MockData = {
 }
 
 function VRT.Tests.SetupMocks()
-    -- Initialize fresh isolated memory containers
     VRT.Tests.MockData.cooldowns = {}
     VRT.Tests.MockData.buffs = {}
     VRT.Tests.MockData.casting = nil
     VRT.Tests.MockData.channeling = nil
     VRT.Tests.MockData.items = {}
 
-    -- Inject mocked GetSpellCooldown routine overrides
+    -- Mock GetSpellCooldown
     GetSpellCooldown = function(spellID)
         local mock = VRT.Tests.MockData.cooldowns[spellID]
         if mock then return mock.start, mock.duration end
         return 0, 0
     end
 
-    -- Inject mocked UnitBuff scanner routing table overrides
+    -- Mock UnitBuff
     UnitBuff = function(unit, index)
         local mockList = VRT.Tests.MockData.buffs[unit]
         if mockList and mockList[index] then
@@ -41,33 +41,56 @@ function VRT.Tests.SetupMocks()
         return nil
     end
 
-    -- Inject mocked UnitCastingInfo status indicator hooks
+    -- Mock UnitCastingInfo
     UnitCastingInfo = function(unit)
         local mock = VRT.Tests.MockData.casting
         if mock then return mock.name, nil, nil, nil, mock.endTime end
         return nil
     end
 
-    -- Inject mocked UnitChannelInfo status indicator hooks
+    -- Mock UnitChannelInfo
     UnitChannelInfo = function(unit)
         local mock = VRT.Tests.MockData.channeling
         if mock then return mock.name, nil, nil, nil, mock.endTime end
         return nil
     end
 
-    -- Inject mocked GetItemInfo database async resolution buffers
+    -- Intelligent Mock GetItemInfo
     GetItemInfo = function(itemNameOrID)
-        local mock = VRT.Tests.MockData.items[itemNameOrID]
-        if mock then return mock.name, mock.link end
+        -- Hardcoded check for missing cache fallback test
+        if itemNameOrID == "Missing Cache Item" then
+            return nil, nil
+        end
+
+        -- If it's the specific test item or any other fallback string
+        if itemNameOrID == "Сапфировый камень маны" or itemNameOrID == "Sapphire Mana Gem" then
+            return itemNameOrID, "item:33312:0:0:0:0:0:0:0"
+        end
+
         return nil, nil
+    end
+
+    -- Intelligent Mock GetSpellLink
+    GetSpellLink = function(spellName)
+        -- Return valid spell link layout strictly for spells, not items
+        if spellName == "Ледяной доспех" or spellName == "Ice Armor" then
+            return "spell:43008"
+        end
+        return nil
+    end
+
+    -- Mock GetItemCount
+    GetItemCount = function(itemID)
+        return 0
     end
 end
 
 function VRT.Tests.TeardownMocks()
-    -- Fully re-link native core pointer addresses back to primary Blizzard API
     GetSpellCooldown = originalGetSpellCooldown
     UnitBuff = originalUnitBuff
     UnitCastingInfo = originalUnitCastingInfo
     UnitChannelInfo = originalUnitChannelInfo
     GetItemInfo = originalGetItemInfo
+    GetSpellLink = originalGetSpellLink
+    GetItemCount = originalGetItemCount
 end

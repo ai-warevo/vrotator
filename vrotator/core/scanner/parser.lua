@@ -4,10 +4,17 @@ VRT.Scanner.Parser = {}
 
 --- @immutable Table of matchers for declarative macro deconstruction
 local MacroMatchers = {
-    { pattern = "/[Cc][Aa][Ss][Tt]%s+([^\n]+)",      type = "spell" },
-    { pattern = "/[Зз][Aa][Кк][Лл]%s+([^\n]+)",      type = "spell" },
-    { pattern = "/[Uu][Ss][Ee]%s+([^\n]+)",          type = "item"  },
-    { pattern = "/[Ии][Сс][Пп][Оо][Лл]%s+([^\n]+)",  type = "item"  }
+    -- English standard layouts
+    { pattern = "/cast%s+([^\n]+)",      type = "spell" },
+    { pattern = "/CAST%s+([^\n]+)",      type = "spell" },
+    { pattern = "/use%s+([^\n]+)",       type = "item"  },
+    { pattern = "/USE%s+([^\n]+)",       type = "item"  },
+    
+    -- Russian localized layouts (Explicit flat strings to bypass Lua 5.1 multi-byte regex limitations)
+    { pattern = "/закл%s+([^\n]+)", type = "spell" },
+    { pattern = "/ЗАКЛ%s+([^\n]+)", type = "spell" },
+    { pattern = "/исп%s+([^\n]+)",      type = "item"  },
+    { pattern = "/ИСП%s+([^\n]+)",      type = "item"  }
 }
 
 ---

@@ -55,9 +55,9 @@ VRT.Tests.RegisterTestCase("Pipeline Engine: Asset Strategy Type Resolution", fu
     -- Test if usable_item strategy safely cleans up implicit string mappings like "item:33312" into integers
     local mockNode = { type = "usable_item", id = "item:33312" }
     
-    -- Setup item counts to 0 to simulate unready asset without triggering error
+    -- The strategy must safely normalize the string key and invoke Blizzard APIs, returning false cleanly
     local status = VRT.Pipeline.Strategies.IsAssetReady(mockNode)
-    VRT.Tests.Assert(status == false, "Asset cooldown lookup strategy crashed or failed to normalize string-prefixed item IDs.")
+    VRT.Tests.Assert(status == false, "Asset strategy configuration mapping returned corrupted execution status.")
 end)
 
 -- Vector 6: Out-of-Combat Buff Runner Fallback Verification (Our main.lua Fix)
