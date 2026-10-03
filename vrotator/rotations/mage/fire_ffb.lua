@@ -1,7 +1,7 @@
 local Spell = VRT.Spells.Mage
 
 VRT.Pipeline.RegisterRotation({
-    name      = "MageFrostfire_FFB",
+    name      = "MageFire_FFB",
     className = "mage",
     
     isActive  = function() 
@@ -9,6 +9,9 @@ VRT.Pipeline.RegisterRotation({
     end,
     
     combatPipeline  = {
+        { id = 13, type = "item",  cond = nil },
+        { id = 14, type = "item",  cond = nil },
+        { id = 10, type = "item",  cond = nil },
         {
             id   = Spell.Pyroblast,
             cond = function() 

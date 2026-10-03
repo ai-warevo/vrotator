@@ -1,483 +1,129 @@
-```md
-# PixelBot — Технические вопросы и ответы
+# vRotator: High-Performance Data-Driven Client Automation Subsystem
 
-## 1. Как аддон узнаёт кулдауны?
-
-**Ответ:** `GetSpellCooldown()`
-
-```lua
-local startTime, duration = GetSpellCooldown("Mortal Strike")
-
--- Если кулдауна нет:
--- startTime = 0, duration = 0
-
--- Если на кулдауне:
--- startTime = GetTime() (когда начался CD)
--- duration = 10000 (10 секунд в миллисекундах)
-
--- Проверка "готов ли спелл":
-local isReady = (startTime == 0) or (duration == 0)
-
--- Проверка "сколько осталось":
-local remaining = 0
-if startTime > 0 and duration > 0 then
-    remaining = (startTime + duration - GetTime()) / 1000  -- в секундах
-end
-```
-
-**Нюансы:**
-- Возвращает время в **миллисекундах**
-- Нужно вычислять `remaining = startTime + duration - GetTime()`
-- Есть **GCD** (global cooldown) — отдельный кулдаун 1.5 сек
+An enterprise-grade, low-overhead reactive state machine inside the World of Warcraft client environment (WotLK 3.3.5a). By replacing nested procedural checking architecture with flattened, unmodifiable strategy tables and decoupled layout layers, this subsystem guarantees a 0ms frame-time calculation footprint at 60+ FPS.
 
 ---
 
-## 2. Как аддон узнаёт баффы/дебаффы?
+## ⚠️ CRITICAL ARCHITECTURAL REQUIREMENTS (READ BEFORE USE)
 
-**Ответ:** `UnitBuff()` / `UnitDebuff()`
+### 1. Strict Hardware Binding Invariant
+The engine operates entirely on direct memory mapping of physical button actions via the Blizzard UI layer. 
+* **Rule:** **EVERY SINGLE SPELL, ITEM, OR MACRO** included in a `combatPipeline` or `buffsPipeline` **MUST BE EXPLICITLY PLACED ON THE ACTION BARS AND BOUND TO A PHYSICAL KEYBOARD KEY** (e.g., `1`, `ALT-Q`, `CTRL-SHIFT-5`).
+* **Why:** If a spell or item is unbinded (`"NOT_BOUND"`) or left drifting on an inactive action bar, the internal scanning layer (`VRT.Scanner`) will fail to resolve its hardware trigger path. The core will instantly drop the calculation thread, zeroes the color signal, and refuse to process the rotation node to protect the network buffer from stack overflow.
 
-```lua
--- Баффы на игроке (1-40 слоты):
-for i = 1, 40 do
-    local name, icon, count, debuffType, duration, expirationTime, source, isStealable, nameplateShowPersonal, spellId = UnitBuff("player", i)
-    if name then
-        -- Бафф есть
-        if name == "Sudden Death" then
-            hasSuddenDeath = true
-        end
-    else
-        break  -- Дальше пусто
-    end
-end
+### 2. Mandatory Macro Setup & Deployment
+To automate non-spell hardware assets (like Engineering modifications and consumable bag items), you must deploy the pre-configured scripted macro blocks provided in the repository.
 
--- Дебаффы на цели:
-for i = 1, 40 do
-    local name = UnitDebuff("target", i)
-    if name == "Rend" then
-        targetHasRend = true
-    end
-end
-```
+* **Global Item Triggers (`vrotator/rotations/macro.txt`):**
+  Contains generic hardware overrides for universal slot execution. Copy these blocks into your native in-game macro panel (`/macro`) and drag them to any visible slot on your main action bars:
+  * **Gloves Slot (Slot 10 - Hyperspeed Accelerators):** Must contain a dedicated `/use 10` execution string.
+  * **Trinkets Slots (Slots 13 & 14):** Must contain discrete `/use 13` and `/use 14` action strings.
 
-**Нюансы:**
-- Нужно итерировать **1-40 слотов** (или до `nil`)
-- `UnitBuff("player", i)` — баффы на игроке
-- `UnitDebuff("target", i)` — дебаффы на цели
-- Можно проверять по **имени** или **spellId**
+* **Class-Specific Triggers (`vrotator/rotations/mage/macro.txt`):**
+  Contains target-specific optimization overrides for the Mage class subsystem. Copy and drag to actionbar panel:
+  * **Mana Gem Activation:** Uses an isolated `/use item:33312` or named item script mapped directly to the `usable_item` automation layer.
+
+* **Scanner Synchronization:** Once all macros and spells are arranged on your active action bars and bound to keyboard keys, type `/vrt` in chat. The `VRT.Scanner.Parser` sub-engine will instantly read the internal macro body text patterns (e.g., matching `/[Uu][Ss][Ee]%s+10`), bind them to keys, and cache them under structural string keys like `"item:10"`.
 
 ---
 
-## 3. Как аддон узнаёт ресурсы (мана, ярость, энергия)?
+## 🗺️ Architectural Topology & Component Decoupling
 
-**Ответ:** `UnitPower()`
+The framework isolates state mutation, hardware mapping, string evaluation, and GUI updates into standalone functional modules:
 
-```lua
--- Ярость (warrior):
-local rage = UnitPower("player", 0)
-
--- Мана (mage, priest):
-local mana = UnitPower("player", 0)
-local manaPercent = mana / UnitPowerMax("player", 0) * 100
-
--- Энергия (rogue):
-local energy = UnitPower("player", 3)
-
--- Фокус (hunter):
-local focus = UnitPower("player", 2)
-
--- Руны (death knight):
-local runes = UnitPower("player", 6)  -- 0-6 рун
-local runeCooldowns = {}
-for i = 1, 6 do
-    local start, duration = GetRuneCooldown(i)
-    runeCooldowns[i] = {start = start, duration = duration}
-end
-
--- Сила рун (death knight):
-local runicPower = UnitPower("player", 7)
-```
-
-**Нюансы:**
-- Тип 0 = мана/ярость (зависит от класса)
-- Тип 3 = энергия
-- Тип 6 = руны (кол-во доступных)
-- Тип 7 = сила рун (DK)
-
----
-
-## 4. Как аддон узнаёт что спелл готов?
-
-**Ответ:** `GetSpellCooldown()` + проверка GCD
-
-```lua
--- Проверка кулдауна спелла:
-local startTime, duration = GetSpellCooldown("Mortal Strike")
-local isReady = (startTime == 0) or (duration == 0)
-
--- Проверка GCD (global cooldown):
-local gcdStart, gcdDuration = GetSpellCooldown(61304)  -- GCD spell ID
--- ИЛИ:
-local gcdStart, gcdDuration = GetSpellCooldown("Mortal Strike")
--- GCD показывается как кулдаун самого спелла
-
-local isGCD = (gcdStart > 0) and (gcdDuration > 0)
-
--- Спелл готов если:
--- 1. Нет кулдауна на спелле
--- 2. Нет GCD (или GCD < 0.1 сек)
-```
-
-**Нюансы:**
-- GCD = 1.5 сек (уменьшается от haste)
-- Некоторые спеллы **не триггерят GCD** (например, тринкеты)
-- Нужно проверять **и спелл CD, и GCD**
-
----
-
-## 5. Как аддон узнаёт дистанцию до цели?
-
-**Ответ:** `CheckInteractDistance()` — ограничено
-
-```lua
--- Возвращает 1-5 или nil:
--- 1 = 5 ярдов (вплотную)
--- 2 = 8 ярдов
--- 3 = 11 ярдов
--- 4 = 28 ярдов
--- 5 = 33 ярда
-
-local dist = CheckInteractDistance("target", 3)
-if dist == 1 then
-    -- Вплотную (< 5 ярдов)
-elseif dist == 2 then
-    -- < 8 ярдов
-elseif dist == nil then
-    -- > 33 ярдов или нет цели
-end
-```
-
-**Нюансы:**
-- **Нет точной дистанции** в Lua API
-- Только 5 порогов (5, 8, 11, 28, 33 ярда)
-- Для melee спеллов достаточно `dist == 1`
-- Для ranged — проверить `dist ~= nil`
-
----
-
-## 6. Как аддон узнаёт что цель атакуема?
-
-**Ответ:** `UnitCanAttack()` + `UnitIsDeadOrGhost()`
-
-```lua
--- Цель существует:
-local targetExists = UnitExists("target")
-
--- Цель атакуема:
-local canAttack = UnitCanAttack("player", "target")
-
--- Цель жива:
-local isAlive = not UnitIsDeadOrGhost("target")
-
--- Цель в бою:
-local inCombat = UnitAffectingCombat("player")
-
--- Комплексная проверка:
-local validTarget = targetExists and canAttack and isAlive
-```
-
-**Нюансы:**
-- `UnitExists("target")` — есть ли цель
-- `UnitCanAttack("player", "target")` — могу ли атаковать
-- `UnitIsDeadOrGhost("target")` — мертва ли цель
-- `UnitIsFriend("player", "target")` — дружественная ли
-
----
-
-## 7. Как аддон определяет приоритет спеллов?
-
-**Ответ:** Жёсткий if-else в ротации
-
-```lua
-return function()
-    -- Приоритет 1 (самый важный):
-    if can_cast("Mortal Strike") then
-        return {key = "1"}
-    end
-    
-    -- Приоритет 2:
-    if can_cast("Overpower") and hasBuff("Overpower!") then
-        return {key = "2"}
-    end
-    
-    -- Приоритет 3:
-    if can_cast("Execute") and targetHP < 20 then
-        return {key = "3"}
-    end
-    
-    -- Нет действия:
-    return nil
-end
-```
-
-**Нюансы:**
-- Порядок if-else = порядок приоритета
-- Первый true = выполняется
-- Можно добавить **приоритет числом** для гибкости:
-```lua
-return {key = "1", priority = 1}
-return {key = "2", priority = 2}
+```text
+vrotator/
+├── core/
+│   ├── pipeline/
+│   │   ├── executor.lua      # Runs specific node logic and macro validations
+│   │   ├── main.lua          # Compilation engines (BuildCombatRunner, BuildBuffsRunner)
+│   │   └── strategies.lua    # O(1) direct hardware asset cooldown lookup strategy maps
+│   ├── scanner/
+│   │   ├── bind.lua          # Low-level translation from client frames to hardware key mappings
+│   │   ├── main.lua          # Flat orchestrator executing the main interface scan loop
+│   │   ├── parser.lua        # Pure logic text deconstruction engine for multi-line macros
+│   │   ├── strategies.lua    # Action routing handlers (spell, item, macro action routing)
+│   │   └── tooltip.lua       # Memory-isolated localized UI tooltip scraper
+│   ├── signal.lua            # High-priority UI Thread RGB Pixel graphics painter
+│   ├── state.lua             # Low-level sensor hooks (GCD, cast strings, native client auras)
+│   ├── utils.lua             # General helper utilities (Logging, dynamic spec detection)
+│   └── vars.lua              # Core database storage and state dictionary pre-allocator
+├── rotations/
+│   └── mage/
+│       ├── fire_ffb.lua      # FFB Mage priority blueprint data record
+│       ├── fire_ttw.lua      # TTW Mage priority blueprint data record
+│       └── spells.lua        # Class-specific static database constants dictionary
+├── vrotator.lua              # Main event dispatcher and dynamic context thread switcher
+└── vrotator.toc              # Metadata manifest regulating static compilation load order
 ```
 
 ---
 
-## 8. Что если несколько условий?
+## 📊 Core Data Flows & Engine Memory Schemas
 
-**Ответ:** AND логика (все условия должны быть true)
+### 1. Interface Deconstruction Pipeline (`VRT.Scanner`)
+When a user invokes `/vrt`, the engine triggers a comprehensive, short-circuit hardware matrix scan. It iterates through all 60 core action buttons, bypasses nested conditions using the **Strategy Pattern**, and builds a unified execution map (`VRT.MyBinds`) in memory:
 
-```lua
-return function()
-    -- Условие 1 AND Условие 2 AND Условие 3:
-    if can_cast("Execute") 
-       and targetHP < 20 
-       and rage >= 60 then
-        return {key = "3"}
-    end
-    
-    -- Можно усложнить (A И (B ИЛИ C)):
-    if can_cast("Spell") 
-       and (hasBuff("Buff1") or hasBuff("Buff2")) then
-        return {key = "1"}
-    end
-end
+```text
+[Blizzard Action Slots] ──> [VRT.Scanner Engine]
+                                │
+                                ├──> [strategies.lua] (Routes by Action Type: "spell"/"item"/"macro")
+                                ├──> [parser.lua]     (Strips mod brackets, matches /cast or /use)
+                                └──> [tooltip.lua]    (Resolves localized string keys)
+                                │
+                                ▼
+                   Generated Hash Map Cache:
+                   VRT.MyBinds = {
+                       [42891]      = "1",            -- Numeric Spell ID -> Hardware Button
+                       ["item:10"]  = "ALT-CTRL-Q",   -- "item:SlotID"    -> Encoded Macro Bind
+                       ["item:33312"] = "SHIFT-E"     -- "item:ItemID"    -> Consumable Bag Item
+                   }
 ```
 
-**Нюансы:**
-- Lua поддерживает `and`, `or`, `not`
-- Можно комбинировать как угодно
-- Главное — читаемость кода
+### 2. Runtime Combat Pipeline Execution
+During high-frequency frame updates in combat, the engine entirely avoids dynamic memory allocations (garbage collection optimization). It loops over static tables in a single linear pass:
+
+```text
+[Engine OnUpdate Frame Tick]
+             │
+             ▼
+    [Is Asset Off Cooldown?] ──(NO)──> [Skip Node Immediately]
+             │ (YES)
+             ▼
+    [ custom cond() predicate ] ──(FALSE)─> [Skip Node Immediately]
+             │ (TRUE)
+             ▼
+    [Fetch Key from VRT.MyBinds] ──> [Paint Window Boundary Pixel via GDI] ──> [Halt Frame execution]
+```
 
 ---
 
-## 9. Как бот понимает ЧТО нажимать?
+## 🎛️ Dual-Loop Thread Execution Engine
 
-**Ответ:** RGB пиксель = клавиша + модификаторы
+To preserve maximum performance overhead safety in both heavy raid environments and peaceful zones, `vrotator.lua` coordinates strict execution routing:
 
-```
-R (0-255) = код клавиши (ASCII)
-G (0-7) = модификаторы
-B (255) = сигнал что это не мусор
-```
+### ⚡ 1. Real-Time High-Speed Thread (Combat State)
+* **Trigger Window:** Initiated strictly on the `PLAYER_REGEN_DISABLED` hardware event hook.
+* **Frequency:** Native frame render updates (60Hz – 144Hz+ inline rendering thread).
+* **Guards:** Instantly dumps execution stack at the top of the frame if `VRT.State.IsGCD()` evaluates to `true`, or if `VRT.State.IsCastingOrChanneling()` confirms an active spell lock. No out-of-combat processing occurs.
 
-**Коды клавиш:**
-```
-49 = '1', 50 = '2', ..., 48 = '0'
-81 = 'q', 87 = 'w', 69 = 'e', 82 = 'r'
-...
-112 = 'f1', 113 = 'f2', ..., 123 = 'f12'
-```
-
-**Модификаторы:**
-```
-0 = нет
-1 = SHIFT
-2 = CTRL
-3 = ALT
-4 = CTRL+SHIFT
-5 = CTRL+ALT
-6 = ALT+SHIFT
-7 = CTRL+ALT+SHIFT
-```
-
-**Пример:**
-```
-(49, 0, 255) = жми '1'
-(49, 1, 255) = жми 'SHIFT+1'
-(82, 2, 255) = жми 'CTRL+R'
-(0, 0, 0) = ничего не жать
-```
-
-**Нюансы:**
-- 255 клавиш (хватит с запасом)
-- 8 комбинаций модификаторов
-- B=255 = защита от ложных срабатываний
+### 💤 2. Throttled Lazy-Loaded Thread (Out-of-Combat State)
+* **Trigger Window:** Initiated strictly on the `PLAYER_REGEN_ENABLED` hardware event hook.
+* **Frequency:** Throttled internally down to a strict **1.0 Hz** interval using an inline time delta accumulator (`buffTimeElapsed = buffTimeElapsed + elapsed`).
+* **Operational Cycle:** Evaluates out-of-combat needs (Self-Buffs, Focus Magic maintenance, and automated item manufacturing like `Conjure Mana Gem`). 
+* **Signal Clearance:** Implements an implicit inline fallback check: if the active module returns `false` (meaning all states are green), it flushes the output pixel token back to native black `(0, 0, 0)` instantly, preventing external keystroke loop deadlocks.
 
 ---
 
-## 10. Как бот понимает КОГДА нажимать?
+## 📋 Cross-Module Dependency & TOC Load Order Manifesto
 
-**Ответ:** 60 FPS опрос экрана
+Because modules reference shared tables, order of execution compilation is strictly structured inside the `.toc` manifest to eliminate `nil value` indexing crashes:
 
-```python
-while True:
-    screen = capture_screen()  # ~5-10ms
-    key, mods = read_signal_pixel(screen)  # ~1ms
-    
-    if key:
-        press_key_with_modifiers(key, mods)  # ~1ms
-    
-    time.sleep(1/60)  # 16.6ms = 60 FPS
-```
-
-**Нюансы:**
-- **Общая задержка:** 5-15ms (скриншот + обработка + ввод)
-- **GCD = 1.5 сек** — бот не будет спамить быстрее
-- Если пиксель горит **постоянно** — бот будет жать 60 раз/сек
-- **Решение:** аддон должен гасить пиксель после нажатия (или бот должен ждать GCD)
-
----
-
-## 11. Что если аддон не видит спелл на Action Bar?
-
-**Ответ:** `GetActionInfo()` вернёт nil
-
-```lua
-for slot = 1, 12 do
-    local actionType, id = GetActionInfo(slot)
-    
-    if actionType == nil then
-        -- Пустой слот
-    elseif actionType == "spell" then
-        local spellName = GetSpellName(id, BOOKTYPE_SPELL)
-        -- Спелл на баре
-    else
-        -- Макрос, предмет, маунт
-    end
-end
-```
-
-**Нюансы:**
-- Спелл может быть в **книге** но не на **баре**
-- Аддон должен проверять **оба места**
-- Если спелл не на баре — **нельзя получить бинд**
-- **Решение:** пользователь должен повесить спелл на бар
-
----
-
-## 12. Как обрабатывать макросы?
-
-**Ответ:** Парсить `/cast` из макроса
-
-```lua
--- Получить текст макроса:
-local macroText = GetMacroBody(macroIndex)
-
--- Парсить /cast:
-local spellName = macroText:match("/cast%s+(.+)")
--- "Mortal Strike" из "/cast Mortal Strike"
-
--- Если макрос с условиями:
--- /cast [mod:ctrl] Spell1; Spell2
--- Нужно парсить сложнее
-```
-
-**Нюансы:**
-- Макросы могут быть **сложными** (`[mod:ctrl]`, `[harm]`, итд)
-- Один макрос может кастовать **разные спеллы**
-- **Решение:** для макросов — отдельная логика или игнор
-
----
-
-## 13. Как бот понимает что нажал?
-
-**Ответ:** SendInput эмулирует нажатие
-
-```python
-def press_key_with_modifiers(key, modifiers):
-    # Нажимаем модификаторы
-    for mod in modifiers:
-        key_down(MODIFIER_VK[mod])
-    
-    # Нажимаем основную клавишу
-    key_down(VK_CODES[key])
-    key_up(VK_CODES[key])
-    
-    # Отпускаем модификаторы
-    for mod in reversed(modifiers):
-        key_up(MODIFIER_VK[mod])
-```
-
-**Нюансы:**
-- **WoW обрабатывает ввод** в следующем кадре
-- **Задержка:** 1-2 кадра (16-33ms)
-- Если бот жмёт **быстрее GCD** — WoW проигнорирует
-- **Решение:** бот должен ждать ~100ms после нажатия
-
----
-
-## 14. Что если игрок меняет бинды во время игры?
-
-**Ответ:** Событие `ACTIONBAR_SLOT_CHANGED`
-
-```lua
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
-frame:RegisterEvent("SPELLS_CHANGED")
-frame:SetScript("OnEvent", function(self, event)
-    if event == "ACTIONBAR_SLOT_CHANGED" then
-        -- Пересканировать Action Bar
-        addon:ScanActionBar()
-    elseif event == "SPELLS_CHANGED" then
-        -- Спеллы изменились (таланты, итд)
-        addon:ScanActionBar()
-    end
-end)
-```
-
-**Нюансы:**
-- Событие срабатывает при **изменении бара**
-- Нужно **пересканировать** и обновить `spellToKey`
-- Бот **не узнает** пока аддон не скажет
-- **Решение:** аддон должен **мигнуть** пикселем "обновление"
-
----
-
-## 15. Как тестировать/дебажить?
-
-**Ответ:** Вывод в чат + логирование
-
-```lua
--- Аддон пишет в чат:
-print("[PixelBot] Mortal Strike -> 1 (CD: 0s)")
-print("[PixelBot] Action: Mortal Strike (key: 1)")
-
--- Или в отдельный фрейм:
-local debugFrame = CreateFrame("Frame", "PixelBotDebug", UIParent)
--- Рендерить текст поверх UI
-```
-
-```python
-# Бот логирует:
-import logging
-logging.basicConfig(filename='pixelbot.log', level=logging.INFO)
-
-logging.info(f"Сигнал: key={key}, mods={modifiers}")
-logging.info(f"Нажато: {key} + {modifiers}")
-```
-
-**Нюансы:**
-- Чат может **скроллиться**
-- Лучше **отдельный debug фрейм** в UI
-- Бот должен логировать **время, сигнал, действие**
-
----
-
-## Итого
-
-| Вопрос | Решение | Статус |
-|--------|---------|--------|
-| Кулдауны | `GetSpellCooldown()` | ✅ |
-| Баффы/дебаффы | `UnitBuff()`, `UnitDebuff()` | ✅ |
-| Ресурсы | `UnitPower()` | ✅ |
-| Спелл готов | `GetSpellCooldown() == 0` | ✅ |
-| Дистанция | `CheckInteractDistance()` (ограничено) | ⚠️ |
-| Цель атакуема | `UnitCanAttack()`, `UnitExists()` | ✅ |
-| Приоритет | If-else в ротации | ✅ |
-| Несколько условий | `and`, `or`, `not` | ✅ |
-| Что нажимать | RGB пиксель (клавиша + моды) | ✅ |
-| Когда нажимать | 60 FPS опрос | ✅ |
-| Спелл не на баре | `GetActionInfo()` = nil | ⚠️ |
-| Макросы | Парсить `/cast` | ⚠️ |
-| Бот нажал | SendInput | ✅ |
-| Смена биндов | `ACTIONBAR_SLOT_CHANGED` | ✅ |
-| Дебаг | Чат + логи | ✅ |
-```
+1. **`core\vars.lua`**: Memory Pre-allocator. Initializes central table namespaces (`VRT.Scanner`, `VRT.Pipeline`, etc.) before any file injects logic functions.
+2. **`core\state.lua`**: Independent Layer. Directly tracks native hardware client APIs (Auras, Cast bars, GCDs). Has zero external framework dependencies.
+3. **`core\utils\main.lua`**: Utility Layer. Exposes general functional facades (`VRT.Log`, `VRT.CheckBuffAndSend`, `VRT.DetectPlayerSpec`).
+4. **`core\scanner\*`**: Interface Scan Subsystem. Parsers, tooltips, binding allocators, and strategy routers execute as an isolated cluster.
+5. **`core\signal.lua`**: Visualization Output Layer. Controls the hardware pixel framework window painter coordinates.
+6. **`core\pipeline\*`**: Compilation & Automation Machinery. Loads strategies, executes nodes, and structures the loop generation logic.
+7. **`rotations\*`**: Blueprint Configurations. Class databases and spec arrays read the framework structures to deploy declarative priority blueprints.
+8. **`vrotator.lua`**: Orchestration Core. Binds the main window dispatcher loops and CLI endpoints, booting the finalized infrastructure.

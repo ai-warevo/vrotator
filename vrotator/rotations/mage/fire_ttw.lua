@@ -1,7 +1,7 @@
 local Spell = VRT.Spells.Mage
 
 VRT.Pipeline.RegisterRotation({
-    name      = "MageFrostfire_TTW",
+    name      = "MageFire_TTW",
     className = "mage",
     
     isActive  = function() 
