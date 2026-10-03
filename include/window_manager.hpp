@@ -1,13 +1,13 @@
-// │   └── window_manager.hpp    # Модуль трекинга фокуса окна WoW
-/*
-## 📂 Модуль трекинга окна игры (Window Management Subsystem)## 2. include/window_manager.hpp (Интерфейс подсистемы фокуса)
-
-* Зона ответственности: Декларация высокоуровневых контрактов для взаимодействия ядра с оконной подсистемой Windows.
-* Что должен содержать: Определение единственной экспортируемой функции проверки состояния IsGameWindowActive().
-*/
 #pragma once
 
+/**
+ * @namespace VRT::WindowManager
+ * @brief Subsystem responsible for tracking the focus and visibility state of the target game process window.
+ */
 namespace VRT::WindowManager {
-    // Stub interface for tracking game window focus state
+    /**
+     * @brief Evaluates whether the primary game client application window is currently active and focused in the foreground.
+     * @return true if the game window is currently processing foreground interactions, false otherwise.
+     */
     bool IsGameWindowActive();
 }
