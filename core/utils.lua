@@ -6,20 +6,30 @@ function VRT.Log(text)
     end
 end
 
-function VRT.HasBuff(unit, spellID)
+function VRT.HasBuff(unit, spellID, onlyPlayer)
     for i = 1, 40 do
-        local _, _, _, _, _, _, _, _, _, _, id = UnitBuff(unit, i)
-        if not id then break end
-        if id == spellID then return true end
+        local name, _, _, _, _, _, _, caster, _, _, id = UnitBuff(unit, i)
+        if not name then
+            break
+        end
+
+        if id == spellID and (not onlyPlayer or caster == "player") then
+            return true
+        end
     end
     return false
 end
 
-function VRT.HasDebuff(unit, spellID)
+function VRT.HasDebuff(unit, spellID, onlyPlayer)
     for i = 1, 40 do
-        local _, _, _, _, _, _, _, caster, _, _, id = UnitDebuff(unit, i)
-        if not id then break end
-        if id == spellID then return true, caster end
+        local name, _, _, _, _, _, _, caster, _, _, id = UnitDebuff(unit, i)
+        if not name then
+            break
+        end
+        
+        if id == spellID and (not onlyPlayer or caster == "player") then
+            return true, caster
+        end
     end
     return false, nil
 end
@@ -29,8 +39,9 @@ function VRT.IsSpellReady(spellID)
     return (start == 0 and duration == 0)
 end
 
+-- https://www.wowhead.com/wotlk/spell=61304/global-cooldown
 function VRT.IsGCD()
-    local start, duration = GetSpellCooldown(42891)
+    local start, duration = GetSpellCooldown(61304)
     return (start > 0 and duration > 0 and duration <= 1.5)
 end
 
@@ -38,5 +49,28 @@ function VRT.IsCastingOrChanneling()
     if UnitCastingInfo("player") or UnitChannelInfo("player") then
         return true
     end
+
+    return false
+end
+
+function VRT.CheckBuffAndSend(unit, checkBuffs, actionSpells, onlyMyCast)
+    local hasAnyBuff = false
+    for _, buffID in ipairs(checkBuffs) do
+        if VRT.HasBuff(unit, buffID, onlyMyCast) then
+            hasAnyBuff = true
+            break
+        end
+    end
+
+    if not hasAnyBuff then
+        for _, spellID in ipairs(actionSpells) do
+            local bind = VRT.MyBinds[spellID]
+            if bind then
+                VRT.SendBindSignal(bind)
+                return true
+            end
+        end
+    end
+
     return false
 end

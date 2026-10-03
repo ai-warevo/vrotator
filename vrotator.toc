@@ -1,6 +1,6 @@
 ## Interface: 30300
 ## Title: vrotator
-## Notes: Модульная автоматическая ротация для Фаер Мага 3.3.5a
+## Notes: Modular auto v Rotator
 ## Author: AI Assistant
 ## Version: 1.1
 
@@ -8,5 +8,6 @@ core\vars.lua
 core\utils.lua
 core\scanner.lua
 core\signal.lua
-rotations\mage_fire.lua
+rotations\mage\spells.lua
+rotations\mage\fire.lua
 vrotator.lua

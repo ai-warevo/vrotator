@@ -1,0 +1,4 @@
+#showtooltip
+/focus [help,nodead]
+/cast [@focus,help,nodead] [harm,nodead] [] Focus Magic
+/cast [@focus,help,nodead] [harm,nodead] [] Магическая концентрация

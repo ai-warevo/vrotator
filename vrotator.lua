@@ -1,7 +1,6 @@
 VRT = VRT or {}
 local frame = CreateFrame("Frame")
 
-local myBinds = {}
 local currentRotation = nil
 
 -- Функция автоматического определения класса и активного спека
@@ -27,20 +26,20 @@ end
 
 -- Общий цикл OnUpdate ядра аддона
 local function OnUpdate(self, elapsed)
-    if UnitIsDeadOrGhost("player") then 
+    if UnitIsDeadOrGhost("player")
+    or not UnitExists("target")
+    or UnitIsDeadOrGhost("target")
+    or not UnitAffectingCombat("player")
+    or not UnitCanAttack("player", "target")
+    or VRT.IsCastingOrChanneling()
+    or VRT.IsGCD() then
         VRT.SetSignalColor(0, 0, 0) 
-        return 
-    end
-    
-    if VRT.IsCastingOrChanneling() or VRT.IsGCD() then 
-        VRT.SetSignalColor(0, 0, 0) 
-        return 
+        return
     end
 
-    -- Запускаем выбранную ротацию, если она была определена
     local actionTaken = false
     if currentRotation then
-        actionTaken = currentRotation(myBinds)
+        actionTaken = currentRotation()
     end
 
     -- Если ни одно условие в модуле ротации не сработало, тушим пиксель
@@ -79,7 +78,7 @@ SlashCmdList["VROTATOR"] = function()
         end
 
         -- 2. Кэшируем бинды панелей
-        myBinds = VRT.ScanAllSpellBindingsWithIDs()
+        VRT.MyBinds = VRT.ScanAllSpellBindingsWithIDs()
         VRT.Log("Action bars scanned.")
 
         -- 3. Активируем триггеры боя
