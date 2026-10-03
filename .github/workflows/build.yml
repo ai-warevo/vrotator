@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*' # Triggers strictly when a version tag is pushed (e.g., v1.0.0)
 
+permissions:
+  contents: write
+
 jobs:
   matrix_build:
     name: Compile Core & Package AddOn
