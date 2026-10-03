@@ -38,6 +38,20 @@ function VRT.Scanner.Parser.ParseMacro(macroBody)
                 if MacroMatchers[i].type == "item" then
                     local slotNumber = tonumber(cleanTarget)
                     if slotNumber then return "item:" .. slotNumber, true end
+                    
+                    local itemIDFromLink = cleanTarget:match("item:(%d+)")
+                    if itemIDFromLink then 
+                        return "item:" .. itemIDFromLink, false 
+                    end
+                    
+                    local _, itemLink = GetItemInfo(cleanTarget)
+                    if itemLink then
+                        local parsedItemID = itemLink:match("item:(%d+)")
+                        if parsedItemID then 
+                            return "item:" .. parsedItemID, false 
+                        end
+                    end
+
                     return cleanTarget, false
                 end
 
