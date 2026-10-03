@@ -18,7 +18,7 @@ function VRT.Scanner.GetAllSpellBindingsWithIDs()
         "MultiBarLeftButton",
     }
     
-    VRT.Log("--- STARTING DECOUPLED MATRIX SCANNING ---")
+    VRT.Utils.Log("--- STARTING DECOUPLED MATRIX SCANNING ---")
     
     for _, barPrefix in ipairs(barFrames) do
         for i = 1, 12 do
@@ -42,6 +42,6 @@ function VRT.Scanner.GetAllSpellBindingsWithIDs()
         end
     end
     
-    VRT.Log("--- MATRIX SCANNING ARCHITECTURE COMPLETED ---")
+    VRT.Utils.Log("--- MATRIX SCANNING ARCHITECTURE COMPLETED ---")
     return idToKeyMap
 end

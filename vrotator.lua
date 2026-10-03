@@ -13,7 +13,7 @@ local isEnabled = false
 --       Maintains visual state of the signal pixel until active rotation demands zero-signal.
 ---
 local function OnUpdateBuffs(self, elapsed)
-    if VRT.IsCastingOrChanneling() then
+    if VRT.State.IsCastingOrChanneling() then
         return
     end
 
@@ -28,7 +28,7 @@ local function OnUpdateBuffs(self, elapsed)
         end
         
         if not actionTaken then
-            VRT.SetSignalColor(0, 0, 0)
+            VRT.Signal.SetSignalColor(0, 0, 0)
         end
     end
 end
@@ -47,9 +47,9 @@ local function OnUpdate(self, elapsed)
     or UnitIsDeadOrGhost("player")
     or UnitIsDeadOrGhost("target")
     or not UnitCanAttack("player", "target")
-    or VRT.IsCastingOrChanneling()
-    or VRT.IsGCD() then
-        VRT.SetSignalColor(0, 0, 0) 
+    or VRT.State.IsCastingOrChanneling()
+    or VRT.State.IsGCD() then
+        VRT.Signal.SetSignalColor(0, 0, 0) 
         return
     end
 
@@ -59,7 +59,7 @@ local function OnUpdate(self, elapsed)
     end
 
     if not actionTaken then
-        VRT.SetSignalColor(0, 0, 0)
+        VRT.Signal.SetSignalColor(0, 0, 0)
     end
 end
 
@@ -77,7 +77,7 @@ local function OnEvent(self, event, ...)
         frame:SetScript("OnUpdate", OnUpdate)
     elseif event == "PLAYER_REGEN_ENABLED" then
         frame:SetScript("OnUpdate", OnUpdateBuffs)
-        VRT.SetSignalColor(0, 0, 0)
+        VRT.Signal.SetSignalColor(0, 0, 0)
     end
 end
 
@@ -87,18 +87,18 @@ end
 --       Uses absolute guard clauses to prevent corrupted initialization states.
 ---
 local function StartVrotator()
-    VRT.Log("Initializing universal core...")
+    VRT.Utils.Log("Initializing universal core...")
     
     VRT.MyBinds = VRT.Scanner.GetAllSpellBindingsWithIDs()
-    VRT.Log("Action bars scanned.")
+    VRT.Utils.Log("Action bars scanned.")
 
-    local spec = VRT.DetectPlayerSpec()
+    local spec = VRT.Utils.DetectPlayerSpec()
     if not spec then
-        VRT.Log("Error: Configuration for your current talent build not found!")
+        VRT.Utils.Log("Error: Configuration for your current talent build not found!")
         isEnabled = false
         return
     end
-    VRT.Log("Detected spec: " .. spec .. ". Module linked successfully.")
+    VRT.Utils.Log("Detected spec: " .. spec .. ". Module linked successfully.")
 
     frame:RegisterEvent("PLAYER_REGEN_DISABLED")
     frame:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -113,7 +113,7 @@ local function StartVrotator()
         VRT.CurrentRotation.Buffs()
     end
     
-    VRT.Log("|cff00ff00ENABLED|r")
+    VRT.Utils.Log("|cff00ff00ENABLED|r")
 end
 
 ---
@@ -128,10 +128,10 @@ local function StopVrotator()
     VRT.CurrentRotation.Combat = nil
     VRT.CurrentRotation.Buffs = nil
     buffTimeElapsed = 0
-    if VRT.SetSignalColor then
-        VRT.SetSignalColor(0, 0, 0)
+    if VRT.Signal.SetSignalColor then
+        VRT.Signal.SetSignalColor(0, 0, 0)
     end
-    VRT.Log("|cffff0000DISABLED|r")
+    VRT.Utils.Log("|cffff0000DISABLED|r")
 end
 
 ---

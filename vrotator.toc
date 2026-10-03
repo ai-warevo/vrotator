@@ -2,17 +2,31 @@
 ## Title: vrotator
 ## Notes: Modular auto v Rotator
 ## Author: AI Assistant
-## Version: 1.1
+## Version: 4.2
 
+# Common
 core\vars.lua
+core\state.lua
 core\utils.lua
+
+# Scan actionbars
 core\scanner\parser.lua
 core\scanner\tooltip.lua
 core\scanner\bind.lua
 core\scanner\strategies.lua
 core\scanner\main.lua
+
+# Execute pipelines
+core\pipeline\strategies.lua
+core\pipeline\executor.lua
+core\pipeline\main.lua
+
+# UI
 core\signal.lua
+
+# Rotations
 rotations\mage\spells.lua
 rotations\mage\fire_ttw.lua
 rotations\mage\fire_ffb.lua
+
 vrotator.lua

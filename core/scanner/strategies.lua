@@ -9,7 +9,7 @@ Strategies["spell"] = function(id, bind, barPrefix, slotIndex, localizedName)
     local spellLink = GetSpellLink(id, BOOKTYPE_SPELL)
     local realSpellID = spellLink and tonumber(spellLink:match("spell:(%d+)")) or id
     
-    VRT.Log(string.format("[%s #%d] GLOBAL Spell ID: %d ('%s') -> Bind: %s", barPrefix, slotIndex, realSpellID, localizedName, bind))
+    VRT.Utils.Log(string.format("[%s #%d] GLOBAL Spell ID: %d ('%s') -> Bind: %s", barPrefix, slotIndex, realSpellID, localizedName, bind))
     return realSpellID, bind
 end
 
@@ -17,7 +17,7 @@ end
 Strategies["item"] = function(id, bind, barPrefix, slotIndex, localizedName)
     local itemKey = "item:" .. id
     
-    VRT.Log(string.format("[%s #%d] DIRECT ITEM Slot/ID: %s ('%s') -> Bind: %s", barPrefix, slotIndex, itemKey, localizedName, bind))
+    VRT.Utils.Log(string.format("[%s #%d] DIRECT ITEM Slot/ID: %s ('%s') -> Bind: %s", barPrefix, slotIndex, itemKey, localizedName, bind))
     return itemKey, bind
 end
 
@@ -30,12 +30,12 @@ Strategies["macro"] = function(id, bind, barPrefix, slotIndex, localizedName)
     finalKey = finalKey or macroName
     
     if isItemSlot then
-        VRT.Log(string.format("[%s #%d] Macro Item Slot: %s -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
+        VRT.Utils.Log(string.format("[%s #%d] Macro Item Slot: %s -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
     elseif type(finalKey) == "number" then
         local spellName = GetSpellInfo(finalKey) or macroName
-        VRT.Log(string.format("[%s #%d] Macro Spell ID: %d ('%s') -> Bind: %s", barPrefix, slotIndex, finalKey, spellName, bind))
+        VRT.Utils.Log(string.format("[%s #%d] Macro Spell ID: %d ('%s') -> Bind: %s", barPrefix, slotIndex, finalKey, spellName, bind))
     else
-        VRT.Log(string.format("[%s #%d] Macro Name/Item: '%s' -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
+        VRT.Utils.Log(string.format("[%s #%d] Macro Name/Item: '%s' -> Bind: %s", barPrefix, slotIndex, tostring(finalKey), bind))
     end
     
     return finalKey, bind

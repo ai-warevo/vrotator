@@ -1,81 +1,22 @@
 VRT = VRT or {}
+VRT.Utils = VRT.Utils or {}
 
-function VRT.Log(text)
+---
+-- @public System Wrapper Client Output Log
+-- @param text string Safe clean logging payload to print.
+---
+function VRT.Utils.Log(text)
     if VRT.DebugMode then
         print("|cff00ffff[vrotator]|r " .. text)
     end
 end
 
-function VRT.HasBuff(unit, spellID, onlyPlayer)
-    for i = 1, 40 do
-        local name, _, _, _, _, _, _, caster, _, _, id = UnitBuff(unit, i)
-        if not name then
-            break
-        end
-
-        if id == spellID and (not onlyPlayer or caster == "player") then
-            return true
-        end
-    end
-    return false
-end
-
-function VRT.HasDebuff(unit, spellID, onlyPlayer)
-    for i = 1, 40 do
-        local name, _, _, _, _, _, _, caster, _, _, id = UnitDebuff(unit, i)
-        if not name then
-            break
-        end
-        
-        if id == spellID and (not onlyPlayer or caster == "player") then
-            return true, caster
-        end
-    end
-    return false, nil
-end
-
-function VRT.IsSpellReady(spellID)
-    local start, duration = GetSpellCooldown(spellID)
-    return (start == 0 and duration == 0)
-end
-
--- https://www.wowhead.com/wotlk/spell=61304/global-cooldown
-function VRT.IsGCD()
-    local start, duration = GetSpellCooldown(61304)
-    return (start > 0 and duration > 0 and duration <= 1.5)
-end
-
-function VRT.IsCastingOrChanneling()
-    if UnitCastingInfo("player") or UnitChannelInfo("player") then
-        return true
-    end
-
-    return false
-end
-
-function VRT.CheckBuffAndSend(unit, checkBuffs, actionSpells, onlyMyCast)
-    local hasAnyBuff = false
-    for _, buffID in ipairs(checkBuffs) do
-        if VRT.HasBuff(unit, buffID, onlyMyCast) then
-            hasAnyBuff = true
-            break
-        end
-    end
-
-    if not hasAnyBuff then
-        for _, spellID in ipairs(actionSpells) do
-            local bind = VRT.MyBinds[spellID]
-            if bind then
-                VRT.SendBindSignal(bind)
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
-function VRT.DetectPlayerSpec()
+---
+-- @public Dynamic Runtime Class Evaluator
+-- @return string Resolved spec tracking naming key registered within the framework index mapping.
+---
+function VRT.Utils.DetectPlayerSpec()
+    VRT.Utils.Log("ekkek")
     local _, classFilename = UnitClass("player")
     local playerClass = classFilename:lower()
     
@@ -91,80 +32,4 @@ function VRT.DetectPlayerSpec()
         end
     end
     return nil
-end
-
-local function IsNodeReady(node)
-    if node.type == "item" then
-        local itemLink = GetInventoryItemLink("player", node.id)
-        if not itemLink or not GetItemSpell(itemLink) then
-            return false
-        end
-
-        local start, duration = GetInventoryItemCooldown("player", node.id)
-        return (start == 0 and duration == 0)
-        
-    elseif node.type == "usable_item" then
-        if GetItemCount(node.id) == 0 then 
-            return false 
-        end
-        
-        local start, duration = GetItemCooldown(node.id)
-        return (start == 0 and duration == 0)
-    else
-        local start, duration = GetSpellCooldown(node.id)
-        return (start == 0 and duration == 0)
-    end
-end
-
-function VRT.RegisterRotation(config)
-    if not config.name then return end
-
-    local instance = {
-        className = config.className,
-        IsActive = config.isActive
-    }
-
-    if config.combatPipeline then
-        instance.Combat = function()
-            for i = 1, #config.combatPipeline do
-                local node = config.combatPipeline[i]
-                
-                if not (node.cond and not node.cond()) and IsNodeReady(node) then
-                    local isItemType = (node.type == "item" or node.type == "usable_item")
-                    local bindKey = isItemType and ("item:" .. node.id) or node.id
-                    local bind = VRT.MyBinds[bindKey]
-                    
-                    if bind then
-                        VRT.SendBindSignal(bind)
-                        return true
-                    end
-                end
-            end
-            return false
-        end
-    end
-
-    if config.buffsPipeline then
-        instance.Buffs = function()
-            for i = 1, #config.buffsPipeline do
-                local node = config.buffsPipeline[i]
-                
-                local extraCond = true
-                if node.extraCond and not node.extraCond() then
-                    extraCond = false
-                end
-                
-                if extraCond then
-                    if VRT.CheckBuffAndSend(node.unit, node.check, node.action, node.onlyMyCast) then
-                        return true
-                    end
-                end
-            end
-            return false
-        end
-    elseif config.buffs then
-        instance.Buffs = config.buffs
-    end
-
-    VRT.Rotations[config.name] = instance
 end

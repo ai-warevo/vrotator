@@ -1,6 +1,6 @@
 local Spell = VRT.Spells.Mage
 
-VRT.RegisterRotation({
+VRT.Pipeline.RegisterRotation({
     name      = "MageFrostfire_TTW",
     className = "mage",
     
@@ -15,20 +15,20 @@ VRT.RegisterRotation({
         {
             id   = Spell.Pyroblast,
             cond = function() 
-                return VRT.HasBuff("player", Spell.HotStreakProc) 
+                return VRT.State.HasBuff("player", Spell.HotStreakProc) 
             end
         },
         {
             id   = Spell.LivingBomb,
             cond = function() 
-                return not VRT.HasDebuff("target", Spell.LivingBomb, true) 
+                return not VRT.State.HasDebuff("target", Spell.LivingBomb, true) 
             end
         },
         {
             id   = Spell.ScorchSpell,
             cond = function() 
-                return not VRT.HasDebuff("target", Spell.ShadowMastery) 
-                and not VRT.HasDebuff("target", Spell.ScorchDebuff) 
+                return not VRT.State.HasDebuff("target", Spell.ShadowMastery) 
+                and not VRT.State.HasDebuff("target", Spell.ScorchDebuff) 
             end
         },
         {
@@ -80,7 +80,7 @@ VRT.RegisterRotation({
                 
                 return charges < 3 
                        and not UnitAffectingCombat("player") 
-                       and VRT.IsSpellReady(Spell.ConjureManaGem)
+                       and VRT.State.IsSpellReady(Spell.ConjureManaGem)
             end
         },
         {
@@ -89,7 +89,7 @@ VRT.RegisterRotation({
             action     = {Spell.FocusMagic},
             onlyMyCast = true,
             extraCond  = function()
-                return VRT.IsSpellReady(Spell.FocusMagic) 
+                return VRT.State.IsSpellReady(Spell.FocusMagic) 
                        and UnitExists("focus") 
                        and not UnitIsDeadOrGhost("focus") 
                        and UnitIsFriend("player", "focus")
