@@ -92,3 +92,72 @@ function VRT.DetectPlayerSpec()
     end
     return nil
 end
+
+local function ExecutePipelineNode(node)
+    if (node.cond and not node.cond()) or not VRT.IsSpellReady(node.id) then 
+        return false 
+    end
+    
+    local bind = VRT.MyBinds[node.id]
+    if bind then
+        VRT.SendBindSignal(bind)
+        return true
+    end
+    return false
+end
+
+function VRT.RegisterRotation(config)
+    if not config.name then return end
+
+    local instance = {
+        className = config.className,
+        IsActive = config.isActive
+    }
+
+    -- 1. Автоматическая сборка боевой ротации (Combat Pipeline)
+    if config.combatPipeline then
+        instance.Combat = function()
+            for i = 1, #config.combatPipeline do
+                local node = config.combatPipeline[i]
+                -- Логика выполнения боевой ноды
+                if not (node.cond and not node.cond()) and VRT.IsSpellReady(node.id) then
+                    local bind = VRT.MyBinds[node.id]
+                    if bind then
+                        VRT.SendBindSignal(bind)
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+    end
+
+    -- 2. Автоматическая сборка менеджмента баффов (Buffs Pipeline)
+    if config.buffsPipeline then
+        instance.Buffs = function()
+            for i = 1, #config.buffsPipeline do
+                local node = config.buffsPipeline[i]
+                
+                -- Если для баффа заданы внешние условия (например, проверка фокуса для Focus Magic)
+                local extraCond = true
+                if node.extraCond and not node.extraCond() then
+                    extraCond = false
+                end
+                
+                if extraCond then
+                    -- Дергаем нашего универсального робота проверки баффов
+                    if VRT.CheckBuffAndSend(node.unit, node.check, node.action, node.onlyMyCast) then
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+    -- Запасной вариант, если кто-то захочет написать баффы старой кастомной функцией
+    elseif config.buffs then
+        instance.Buffs = config.buffs
+    end
+
+    -- Регистрируем готовый инстанс в ядре аддона
+    VRT.Rotations[config.name] = instance
+end

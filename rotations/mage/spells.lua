@@ -16,10 +16,13 @@ VRT.Spells.Mage = {
     HotStreakProc = 48108,
     Pyroblast = 42891,
     Fireball = 42833,
+    FrostfireBolt = 47610,
     
     ScorchSpell = 42859,
     ScorchDebuff = 22959,
     ShadowMastery = 17800,
     
-    LivingBomb = 55360
+    LivingBomb = 55360,
+    IcyVeins = 12472,
+    ColdSnap = 11958
 }

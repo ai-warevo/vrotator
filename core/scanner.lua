@@ -78,7 +78,9 @@ function VRT.ScanAllSpellBindingsWithIDs()
                             
                             if macroBody then
                                 -- 1. Парсим строку /cast или /закл (игнорируя регистр)
-                                local castLine = macroBody:match("/[Cc]ast%s+([^\n]+)") or macroBody:match("/[Зз]акл%s+([^\n]+)")
+                                local castLine = macroBody:match("/[Cc][Aa][Ss][Tt]%s+([^\n]+)")
+                                or macroBody:match("/use%s+([^\n]+)")
+                                or macroBody:match("/[Зз][Aa][Кк][Лл]%s+([^\n]+)")
                                 
                                 if castLine then
                                     -- 2. Очищаем условия в квадратных скобках вроде [mod:ctrl, harm] или [@cursor]
