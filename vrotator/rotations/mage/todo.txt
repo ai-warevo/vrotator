@@ -1,3 +1,116 @@
-а если переставит панели?
+а если не вссе спелы на панели?
+а если нет бинда?
 
 minmax?: на ходу Ice Lance либо Fire Blast
+
+evocation ???
+
+
+
+_____________________
+_____________________
+_____________________
+_____________________
+_____________________
+а если переставит панели?
+## 14. Что если игрок меняет бинды во время игры?
+
+**Ответ:** Событие `ACTIONBAR_SLOT_CHANGED`
+
+```lua
+local frame = CreateFrame("Frame")
+frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+frame:RegisterEvent("SPELLS_CHANGED")
+frame:SetScript("OnEvent", function(self, event)
+    if event == "ACTIONBAR_SLOT_CHANGED" then
+        -- Пересканировать Action Bar
+        addon:ScanActionBar()
+    elseif event == "SPELLS_CHANGED" then
+        -- Спеллы изменились (таланты, итд)
+        addon:ScanActionBar()
+    end
+end)
+```
+
+**Нюансы:**
+- Событие срабатывает при **изменении бара**
+- Нужно **пересканировать** и обновить `spellToKey`
+- Бот **не узнает** пока аддон не скажет
+- **Решение:** аддон должен **мигнуть** пикселем "обновление"
+
+_____________________
+_____________________
+_____________________
+_____________________
+_____________________
+## 3. Как аддон узнаёт ресурсы (мана, ярость, энергия)?
+
+**Ответ:** `UnitPower()`
+
+```lua
+-- Ярость (warrior):
+local rage = UnitPower("player", 0)
+
+-- Мана (mage, priest):
+local mana = UnitPower("player", 0)
+local manaPercent = mana / UnitPowerMax("player", 0) * 100
+
+-- Энергия (rogue):
+local energy = UnitPower("player", 3)
+
+-- Фокус (hunter):
+local focus = UnitPower("player", 2)
+
+-- Руны (death knight):
+local runes = UnitPower("player", 6)  -- 0-6 рун
+local runeCooldowns = {}
+for i = 1, 6 do
+    local start, duration = GetRuneCooldown(i)
+    runeCooldowns[i] = {start = start, duration = duration}
+end
+
+-- Сила рун (death knight):
+local runicPower = UnitPower("player", 7)
+```
+
+**Нюансы:**
+- Тип 0 = мана/ярость (зависит от класса)
+- Тип 3 = энергия
+- Тип 6 = руны (кол-во доступных)
+- Тип 7 = сила рун (DK)
+
+---
+---
+---
+---
+---
+---
+## 5. Как аддон узнаёт дистанцию до цели?
+
+**Ответ:** `CheckInteractDistance()` — ограничено
+
+```lua
+-- Возвращает 1-5 или nil:
+-- 1 = 5 ярдов (вплотную)
+-- 2 = 8 ярдов
+-- 3 = 11 ярдов
+-- 4 = 28 ярдов
+-- 5 = 33 ярда
+
+local dist = CheckInteractDistance("target", 3)
+if dist == 1 then
+    -- Вплотную (< 5 ярдов)
+elseif dist == 2 then
+    -- < 8 ярдов
+elseif dist == nil then
+    -- > 33 ярдов или нет цели
+end
+```
+
+**Нюансы:**
+- **Нет точной дистанции** в Lua API
+- Только 5 порогов (5, 8, 11, 28, 33 ярда)
+- Для melee спеллов достаточно `dist == 1`
+- Для ranged — проверить `dist ~= nil`
+
+---

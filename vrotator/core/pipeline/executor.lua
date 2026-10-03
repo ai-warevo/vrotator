@@ -37,15 +37,36 @@ end
 -- @return boolean true if node execution parameters match and an output token is pushed.
 ---
 function VRT.Pipeline.Executor.ExecutePipelineNode(node)
-    if not (node.cond and not node.cond()) and VRT.Pipeline.Strategies.IsAssetReady(node) then
-        local isItemType = (node.type == "item" or node.type == "usable_item")
-        local bindKey = isItemType and ("item:" .. node.id) or node.id
-        local bind = VRT.MyBinds[bindKey]
-        
-        if bind then
-            VRT.Signal.SendBind(bind)
-            return true
-        end
+    if node.cond and not node.cond() then
+        return false
     end
+
+    if not VRT.Pipeline.Strategies.IsAssetReady(node) then
+        return false
+    end
+
+    if VRT.State.IsCastingOrChanneling() then
+        local castingName, _, _, _, endTime = UnitCastingInfo("player")
+        if castingName then
+            local remainingTime = (endTime / 1000) - GetTime()
+            if remainingTime > 0.30 then
+                return false -- Еще кастуем, до конца далеко
+            end
+        else
+            return false
+        end
+    elseif VRT.State.IsGCD() then
+        return false
+    end
+
+    local isItemType = (node.type == "item" or node.type == "usable_item")
+    local bindKey = isItemType and ("item:" .. node.id) or node.id
+    local bind = VRT.MyBinds[bindKey]
+    
+    if bind then
+        VRT.Signal.SendBind(bind)
+        return true
+    end
+
     return false
 end

@@ -2,20 +2,64 @@
 #include <windows.h>
 #include <iomanip>
 #include <string>
+#include <sstream> // Добавлено для удобного форматирования строки времени
 #include "config.hpp"
 #include "window_manager.hpp"
 #include "pixel_reader.hpp"
 #include "input_engine.hpp"
 
+// Вспомогательная функция для получения текущего времени в формате [ЧЧ:ММ:СС.ммм]
+std::string GetTimestamp() {
+    SYSTEMTIME st;
+    GetLocalTime(&st); // Высокоточный захват системного времени Windows
+    
+    std::ostringstream oss;
+    oss << "[" 
+        << std::setfill('0') << std::setw(2) << st.wHour << ":"
+        << std::setfill('0') << std::setw(2) << st.wMinute << ":"
+        << std::setfill('0') << std::setw(2) << st.wSecond << "."
+        << std::setfill('0') << std::setw(3) << st.wMilliseconds 
+        << "] ";
+    return oss.str();
+}
+
+// Вспомогательная функция для безопасного и понятного перевода VK-кода в текст
+std::string GetKeyName(int vkCode) {
+    // Обработка функциональных клавиш F1 - F12
+    if (vkCode >= VK_F1 && vkCode <= VK_F12) {
+        return "F" + std::to_string(vkCode - VK_F1 + 1);
+    }
+    
+    // Обработка стандартных цифровых клавиш (0-9) и букв (A-Z)
+    if ((vkCode >= '0' && vkCode <= '9') || (vkCode >= 'A' && vkCode <= 'Z')) {
+        return std::string(1, static_cast<char>(vkCode));
+    }
+    
+    // Если код пришел в нижнем регистре из-за особенностей аддона, принудительно приводим к верхнему
+    if (vkCode >= 'a' && vkCode <= 'z') {
+        return std::string(1, static_cast<char>(toupper(vkCode)));
+    }
+
+    // Расшифровка других системных клавиш Windows
+    switch (vkCode) {
+        case VK_SPACE:  return "SPACE";
+        case VK_RETURN: return "ENTER";
+        case VK_ESCAPE: return "ESC";
+        case VK_TAB:    return "TAB";
+        case VK_BACK:   return "BACKSPACE";
+        default:        return "VK_" + std::to_string(vkCode); // Запасной вариант для редких кодов
+    }
+}
+
 int main() {
     // 1. Инициализация консоли и вывод приветственного баннера
     std::cout << "==========================================================" << std::endl;
-    std::cout << "--- VROTATOR MULTI-MODULE AUTOMATION KERNEL BOOTED ---" << std::endl;
+    std::cout << GetTimestamp() << "--- VROTATOR MULTI-MODULE AUTOMATION KERNEL BOOTED ---" << std::endl;
     std::cout << "==========================================================" << std::endl;
-    std::cout << "[INIT] Target Environment Spec: " << VRT::Config::TARGET_WINDOW_TITLE << std::endl;
-    std::cout << "[INIT] Enforce Focus Security:  " << (VRT::Config::ENFORCE_WINDOW_FOCUS ? "ENABLED" : "DISABLED") << std::endl;
-    std::cout << "[INIT] Hardware Termination Key: F" << (VRT::Config::EMERGENCY_EXIT_HOTKEY - VK_F1 + 1) << std::endl;
-    std::cout << "[STATUS] Scanning pipeline initialized. Awaiting game signal...\n" << std::endl;
+    std::cout << GetTimestamp() << "[INIT] Target Environment Spec: " << VRT::Config::TARGET_WINDOW_TITLE << std::endl;
+    std::cout << GetTimestamp() << "[INIT] Enforce Focus Security:  " << (VRT::Config::ENFORCE_WINDOW_FOCUS ? "ENABLED" : "DISABLED") << std::endl;
+    std::cout << GetTimestamp() << "[INIT] Hardware Termination Key: F" << (VRT::Config::EMERGENCY_EXIT_HOTKEY - VK_F1 + 1) << std::endl;
+    std::cout << GetTimestamp() << "[STATUS] Scanning pipeline initialized. Awaiting game signal...\n" << std::endl;
 
     // Переменные для отслеживания изменений состояния (дифференциальный лог)
     bool lastFocusState = false;
@@ -27,7 +71,7 @@ int main() {
     while (true) {
         // 3. Аппаратный перехват прерывания экстренного выхода (VK_F11)
         if (GetAsyncKeyState(VRT::Config::EMERGENCY_EXIT_HOTKEY) & 0x8000) {
-            std::cout << "\n[HALT] Emergency interrupt signal caught. Halting execution tree." << std::endl;
+            std::cout << "\n" << GetTimestamp() << "[HALT] Emergency interrupt signal caught. Halting execution tree." << std::endl;
             break;
         }
 
@@ -36,7 +80,7 @@ int main() {
 
         // Логируем изменение фокуса окна
         if (currentFocus != lastFocusState || firstRun) {
-            std::cout << "[FOCUS CHANGE] Target window active: " << (currentFocus ? "YES (Processing)" : "NO (Sleeping)") << std::endl;
+            std::cout << GetTimestamp() << "[FOCUS CHANGE] Target window active: " << (currentFocus ? "YES (Processing)" : "NO (Sleeping)") << std::endl;
             lastFocusState = currentFocus;
         }
 
@@ -51,7 +95,7 @@ int main() {
 
             // Логируем изменение цвета пикселя, чтобы видеть, что вообще происходит на экране
             if (color != lastColor || firstRun) {
-                std::cout << "[PIXEL STATE] Raw Hex: 0x" 
+                std::cout << GetTimestamp() << "[PIXEL STATE] Raw Hex: 0x" 
                           << std::uppercase << std::setfill('0') << std::setw(6) << std::hex << color 
                           << std::dec 
                           << " | R (Key): " << r 
@@ -85,8 +129,10 @@ int main() {
                 if (g & 2) modStr += "CTRL-";
                 if (g & 4) modStr += "ALT-";
 
-                std::cout << "[EXECUTE] Discrete click executed(" << modStr << ") -> Key Code: " << r 
-                          << " (Char: " << static_cast<char>(r) << ") | Modifier Mask: " << g << std::endl;
+                // Форматируем красивый и точный вывод комбинации клавиш (например: ALT-F1 или Shift-Q)
+                std::cout << GetTimestamp() << "[EXECUTE] Discrete click executed -> " 
+                          << "Combo: (" << modStr << GetKeyName(r) << ") | Key Code: " << r 
+                          << " | Modifier Mask: " << g << std::endl;
                 
                 // Отправка пакета на уровень инжекции ввода
                 VRT::InputEngine::SendHardwareInput(r, g);
@@ -119,6 +165,6 @@ int main() {
         }
     }
 
-    std::cout << "[SHUTDOWN] Core systems unlinked. Safe exit status confirmed." << std::endl;
+    std::cout << GetTimestamp() << "[SHUTDOWN] Core systems unlinked. Safe exit status confirmed." << std::endl;
     return 0;
 }

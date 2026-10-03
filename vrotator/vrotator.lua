@@ -13,7 +13,8 @@ local isEnabled = false
 --       Maintains visual state of the signal pixel until active rotation demands zero-signal.
 ---
 local function OnUpdateBuffs(self, elapsed)
-    if VRT.State.IsCastingOrChanneling() then
+    if VRT.State.IsCastingOrChanneling() or VRT.State.IsGCD() then
+        VRT.Signal.SetSignalColor(0, 0, 0)
         return
     end
 
@@ -30,6 +31,11 @@ local function OnUpdateBuffs(self, elapsed)
         if not actionTaken then
             VRT.Signal.SetSignalColor(0, 0, 0)
         end
+    else
+        -- ФИКС БЕШЕНОГО СПАМА: Во все остальные 59 кадров секунды (пока таймер копит время)
+        -- принудительно гасим пиксель в черный. Это превращает сигнал в короткий одиночный импульс,
+        -- давая С++ кликеру команду выполнить ровно ОДИН дискретный клик.
+        VRT.Signal.SetSignalColor(0, 0, 0)
     end
 end
 
