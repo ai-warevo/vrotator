@@ -6,7 +6,11 @@
 
 core\vars.lua
 core\utils.lua
-core\scanner.lua
+core\scanner\parser.lua
+core\scanner\tooltip.lua
+core\scanner\bind.lua
+core\scanner\strategies.lua
+core\scanner\main.lua
 core\signal.lua
 rotations\mage\spells.lua
 rotations\mage\fire_ttw.lua

@@ -89,7 +89,7 @@ end
 local function StartVrotator()
     VRT.Log("Initializing universal core...")
     
-    VRT.MyBinds = VRT.ScanAllSpellBindingsWithIDs()
+    VRT.MyBinds = VRT.Scanner.GetAllSpellBindingsWithIDs()
     VRT.Log("Action bars scanned.")
 
     local spec = VRT.DetectPlayerSpec()
