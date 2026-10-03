@@ -9,6 +9,7 @@ From the repository root workspace directory, invoke the MSVC compiler wrapper:
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
+./build/Release/vrotator_clicker.exe 
 ```
 The optimized native binary target will compile straight into the `build/` root folder directory as `vrotator_clicker.exe`.
 

@@ -1,4 +1,3 @@
-#include "pixel_reader.hpp"
 /*
 ## 5. src/pixel_reader.cpp (Реализация захвата пикселя через GDI)
 
@@ -10,9 +9,41 @@
    4. Обеспечивать корректное освобождение контекста ReleaseDC при деструктуризации или закрытии программы.
 */
 
+#include "pixel_reader.hpp"
+
 namespace VRT::PixelReader {
+
+    // Внутренний RAII-класс для безопасного управления жизненным циклом HDC
+    class DeviceContextWrapper {
+    public:
+        DeviceContextWrapper() {
+            // 1. При первом вызове захватываем контекст устройства всего экрана (HDC)
+            m_hdc = GetDC(NULL);
+        }
+
+        ~DeviceContextWrapper() {
+            // 4. Обеспечиваем корректное освобождение контекста при закрытии программы
+            if (m_hdc) {
+                ReleaseDC(NULL, m_hdc);
+            }
+        }
+
+        HDC GetContext() const { return m_hdc; }
+
+    private:
+        HDC m_hdc = nullptr;
+    };
+
     COLORREF ReadSignalPixel() {
-        // Stub implementation: returns validation signature RGB(0, 0, 255)
-        return RGB(0, 0, 255);
+        // 3. Кэшируем дескриптор HDC в памяти процесса через статический синглтон
+        static DeviceContextWrapper dcWrapper;
+        HDC hdc = dcWrapper.GetContext();
+
+        if (!hdc) {
+            return RGB(0, 0, 0); // Если контекст невалиден, возвращаем черный цвет (IDLE)
+        }
+
+        // 2. Считываем цвет в абсолютных экранных координатах (0, 0) с помощью GetPixel()
+        return GetPixel(hdc, 0, 0);
     }
 }
