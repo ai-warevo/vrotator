@@ -74,3 +74,21 @@ function VRT.CheckBuffAndSend(unit, checkBuffs, actionSpells, onlyMyCast)
 
     return false
 end
+
+function VRT.DetectPlayerSpec()
+    local _, classFilename = UnitClass("player")
+    local playerClass = classFilename:lower()
+    
+    for specName, rotationModule in pairs(VRT.Rotations) do
+        local isMatch = (not rotationModule.className or rotationModule.className == playerClass) 
+                        and rotationModule.IsActive 
+                        and rotationModule.IsActive()
+        
+        if isMatch then
+            VRT.CurrentRotation.Combat = rotationModule.Combat
+            VRT.CurrentRotation.Buffs = rotationModule.Buffs
+            return specName
+        end
+    end
+    return nil
+end
