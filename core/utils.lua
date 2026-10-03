@@ -108,6 +108,17 @@ end
 
 local function IsNodeReady(node)
     if node.type == "item" then
+        local itemLink = GetInventoryItemLink("player", node.id)
+        if not itemLink then
+            return false
+        end
+        
+        local hasUseEffect = GetItemSpell(itemLink) 
+        
+        if not hasUseEffect then
+            return false
+        end
+
         local start, duration = GetInventoryItemCooldown("player", node.id)
         return (start == 0 and duration == 0)
     else
