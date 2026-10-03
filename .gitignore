@@ -1,0 +1,35 @@
+# ====================================================================
+# ARCHITECTURAL BLACKLIST: Block everything by default
+# ====================================================================
+*
+
+# ====================================================================
+# ARCHITECTURAL WHITELIST: Open targeted engineering nodes
+# ====================================================================
+
+# 1. Main Infrastructure Config Pointers
+!.gitignore
+!CMakeLists.txt
+!README.md
+!.vscode/
+!.vscode/*
+!.github/
+!.github/**
+
+# 2. Native Multi-Module C++ Clicker Source Nodes
+!include/
+!include/**
+!src/
+!src/**
+!test/
+!test/**
+
+# 3. Core Universal Lua Framework
+!vrotator/
+!vrotator/**
+
+# ====================================================================
+# CLEANUP RULES: Block local dirty build environment output
+# ====================================================================
+build/
+.cmake/
