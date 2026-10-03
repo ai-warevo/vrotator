@@ -1,13 +1,14 @@
-// │   ├── input_engine.hpp      # Модуль низкоуровневой эмуляции SendInput
-/*
-## 📂 Модуль низкоуровневой эмуляции ввода (Hardware Peripheral Injection Control)## 6. include/input_engine.hpp (Интерфейс подсистемы инжекции ввода)
-
-* Зона ответственности: Декларация контракта на симуляцию клавиатурных прерываний.
-* Что должен содержать: Определение функции SendHardwareInput(int keyCode, int modifierCode), принимающей ASCII-код клавиши и битовую маску модификаторов.
-*/
 #pragma once
 
+/**
+ * @namespace VRT::InputEngine
+ * @brief Subsystem responsible for kernel-level peripheral input injection.
+ */
 namespace VRT::InputEngine {
-    // Stub interface for kernel-level peripheral injection
+    /**
+     * @brief Translates and injects a single discrete hardware input sequence with modifiers.
+     * @param keyCode The numeric virtual key identifier or ASCII character value.
+     * @param modifierCode The arithmetically packed modifier key bitmask state.
+     */
     void SendHardwareInput(int keyCode, int modifierCode);
 }

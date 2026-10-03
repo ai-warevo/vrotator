@@ -1,93 +1,80 @@
-/*
-## 7. src/input_engine.cpp (Реализация обхода защит через SendInput)
-
-* Зона ответственности: Генерация чистых аппаратных событий ввода на уровне ядра ОС.
-* Что должен делать:
-1. Принимать сырые данные RGB-сигнала. Конвертировать ASCII-код из аддона в системный код виртуальной клавиши Windows (Virtual-Key Code).
-   2. Распаковывать битовую маску зеленого канала (modifierCode) на три независимых флага состояний: Shift, Ctrl, Alt.
-   3. Динамически собирать массив структур INPUT (максимум до 4 действий на один фрейм):
-   * Действие 1: Зажатие всех активных модификаторов (INPUT_KEYBOARD).
-      * Действие 2: Нажатие основной клавиши.
-      * Действие 3: Отпускание основной клавиши (KEYEVENTF_KEYUP).
-      * Действие 4: Отпускание модификаторов в обратном порядке (защита от залипания).
-   4. Отправлять собранный пакет данных напрямую в подсистему ввода Windows через ядерную функцию SendInput(). Игра воспримет это как 100% физический клик по клавиатуре.
-*/
-
 #include "input_engine.hpp"
 #include <windows.h>
-#include <vector>
+#include <array>
 
 namespace VRT::InputEngine {
 
-    // Вспомогательная внутренняя функция — убрали const, чтобы SendInput принимал неконстантный указатель
-    static void SendRawInputBatch(std::vector<INPUT>& inputs) {
-        if (!inputs.empty()) {
-            SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
-        }
+namespace {
+    /**
+     * @brief Generates a platform-compliant hardware keyboard input structure.
+     * @param vk The Windows Virtual-Key code.
+     * @param flags The execution state behavior bitmask flags (e.g., KEYEVENTF_KEYUP).
+     * @return A constructed Win32 INPUT event record.
+     */
+    [[nodiscard]] constexpr INPUT BuildKeyEvent(const WORD vk, const DWORD flags) noexcept {
+        INPUT input{};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = vk;
+        input.ki.wScan = static_cast<WORD>(::MapVirtualKeyA(vk, MAPVK_VK_TO_VSC));
+        input.ki.dwFlags = flags;
+        input.ki.time = 0;
+        input.ki.dwExtraInfo = 0;
+        return input;
     }
 
-    void SendHardwareInput(int keyCode, int modifierCode) {
-        // Защитный барьер: если сигнал пустой, мгновенно выходим
-        if (keyCode <= 0) {
-            return;
+    /**
+     * @brief Dispatches a packed array sequence directly to the OS ring-0 subsystem.
+     * @param data Raw pointer to the contiguous sequential memory storage block.
+     * @param count Total number of structural entities scheduled for preemption.
+     */
+    void DispatchInputBatch(INPUT* const data, const UINT count) noexcept {
+        if (count > 0) {
+            ::SendInput(count, data, sizeof(INPUT));
         }
-
-        // ПРЯМОЙ МАППИНГ: Входящий keyCode уже является валидным Virtual-Key кодом Windows
-        WORD targetVKey = static_cast<WORD>(keyCode);
-
-        // Распаковываем битовую маску модификаторов: (Shift * 1) + (Ctrl * 2) + (Alt * 4)
-        bool shift = (modifierCode & 1) != 0;
-        bool ctrl  = (modifierCode & 2) != 0;
-        bool alt   = (modifierCode & 4) != 0;
-
-        // Вспомогательная лямбда для сборки структур INPUT
-        auto buildKeyEvent = [](WORD vk, DWORD flags) -> INPUT {
-            INPUT in = {};
-            in.type = INPUT_KEYBOARD;
-            in.ki.wVk = vk;
-            in.ki.wScan = static_cast<WORD>(MapVirtualKeyA(vk, MAPVK_VK_TO_VSC));
-            in.ki.dwFlags = flags;
-            in.ki.time = 0;
-            in.ki.dwExtraInfo = 0;
-            return in;
-        };
-
-        // ==========================================
-        // ЭТАП 1: ФИЗИЧЕСКОЕ ЗАЖАТИЕ КЛАВИШ (KEYDOWN)
-        // ==========================================
-        std::vector<INPUT> pressBatch;
-
-        // Зажимаем active модификаторы
-        if (shift) pressBatch.push_back(buildKeyEvent(VK_SHIFT, 0));
-        if (ctrl)  pressBatch.push_back(buildKeyEvent(VK_CONTROL, 0));
-        if (alt)   pressBatch.push_back(buildKeyEvent(VK_MENU, 0));
-
-        // Зажимаем основную клавишу бинда
-        pressBatch.push_back(buildKeyEvent(targetVKey, 0));
-
-        // Атомарно отправляем фазу нажатия в ОС
-        SendRawInputBatch(pressBatch);
-
-        // ==========================================
-        // ЭТАП 2: АППАРАТНЫЙ МИКРО-СОН (ТАЙМИНГ УДЕРЖАНИЯ)
-        // ==========================================
-        // Пауза 10 мс для фиксации модификаторов движком WoW
-        Sleep(10);
-
-        // ==========================================
-        // ЭТАП 3: ФИЗИЧЕСКОЕ ОТПУСКАНИЕ КЛАВИШ (KEYUP)
-        // ==========================================
-        std::vector<INPUT> releaseBatch;
-
-        // Сначала отпускаем основную клавишу способности
-        releaseBatch.push_back(buildKeyEvent(targetVKey, KEYEVENTF_KEYUP));
-
-        // Затем отпускаем модификаторы в обратном порядке (защита от залипания)
-        if (alt)   releaseBatch.push_back(buildKeyEvent(VK_MENU, KEYEVENTF_KEYUP));
-        if (ctrl)  releaseBatch.push_back(buildKeyEvent(VK_CONTROL, KEYEVENTF_KEYUP));
-        if (shift) releaseBatch.push_back(buildKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP));
-
-        // Атомарно отправляем фазу освобождения в ОС
-        SendRawInputBatch(releaseBatch);
     }
+} // namespace
+
+void SendHardwareInput(const int keyCode, const int modifierCode) noexcept {
+    if (keyCode <= 0) [[unlikely]] {
+        return;
+    }
+
+    const auto targetVKey = static_cast<WORD>(keyCode);
+
+    // Deconstruct arithmetic packed payload states: (Shift * 1) + (Ctrl * 2) + (Alt * 4)
+    const bool hasShift = (modifierCode & 1) != 0;
+    const bool hasCtrl  = (modifierCode & 2) != 0;
+    const bool hasAlt   = (modifierCode & 4) != 0;
+
+    // Hard ceiling architecture constraint: Maximum potential sequence allocations per transactional window
+    constexpr size_t kMaxEventsPerBatch = 4;
+    
+    // Performance Optimization: Eradicate heap page faults by allocating frames inside standard execution stacks
+    std::array<INPUT, kMaxEventsPerBatch> pressEvents{};
+    UINT pressCount = 0;
+
+    // Sequential Hardware Down Matrix State Ingestion
+    if (hasShift) pressEvents[pressCount++] = BuildKeyEvent(VK_SHIFT, 0);
+    if (hasCtrl)  pressEvents[pressCount++] = BuildKeyEvent(VK_CONTROL, 0);
+    if (hasAlt)   pressEvents[pressCount++] = BuildKeyEvent(VK_MENU, 0);
+    pressEvents[pressCount++] = BuildKeyEvent(targetVKey, 0);
+
+    // Atomically commit keyboard preemption hooks into native desktop threads
+    DispatchInputBatch(pressEvents.data(), pressCount);
+
+    // Deterministic hardware hold padding window allowing safe game client internal processing loops
+    ::Sleep(10);
+
+    std::array<INPUT, kMaxEventsPerBatch> releaseEvents{};
+    UINT releaseCount = 0;
+
+    // Sequential Hardware Up Matrix State Ingestion (Inverted topology eliminates system sticky modifications)
+    releaseEvents[releaseCount++] = BuildKeyEvent(targetVKey, KEYEVENTF_KEYUP);
+    if (hasAlt)   releaseEvents[releaseCount++] = BuildKeyEvent(VK_MENU, KEYEVENTF_KEYUP);
+    if (hasCtrl)  releaseEvents[releaseCount++] = BuildKeyEvent(VK_CONTROL, KEYEVENTF_KEYUP);
+    if (hasShift) releaseEvents[releaseCount++] = BuildKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP);
+
+    DispatchInputBatch(releaseEvents.data(), releaseCount);
 }
+
+} // namespace VRT::InputEngine
