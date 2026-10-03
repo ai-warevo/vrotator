@@ -6,7 +6,7 @@
 
 namespace VRT::WindowManager {
 
-bool IsGameWindowActive() noexcept {
+bool IsGameWindowActive() {
     // If foreground constraint security is disabled, bypass validation loops immediately
     if (!Config::ENFORCE_WINDOW_FOCUS) {
         return true;
