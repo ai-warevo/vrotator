@@ -10,6 +10,13 @@ VRT.Scanner.Tooltip = VRT.Scanner.Tooltip or {}
 ---
 function VRT.Scanner.GetAllSpellBindingsWithIDs()
     local idToKeyMap = {}
+    local barOffsets = {
+        ["ActionButton"]              = 0,
+        ["MultiBarBottomLeftButton"]  = 60,
+        ["MultiBarBottomRightButton"] = 48,
+        ["MultiBarRightButton"]       = 24,
+        ["MultiBarLeftButton"]        = 36,
+    }
     local barFrames = {
         "ActionButton",
         "MultiBarBottomLeftButton",
@@ -21,22 +28,20 @@ function VRT.Scanner.GetAllSpellBindingsWithIDs()
     VRT.Utils.Log("--- STARTING DECOUPLED MATRIX SCANNING ---")
     
     for _, barPrefix in ipairs(barFrames) do
+        local offset = barOffsets[barPrefix]
+        
         for i = 1, 12 do
-            local buttonFrame = _G[barPrefix .. i]
+            local slotID = offset + i
+            local actionType, id = GetActionInfo(slotID)
             
-            if buttonFrame and buttonFrame.action then
-                local slotID = buttonFrame.action
-                local actionType, id = GetActionInfo(slotID)
+            if actionType and actionType ~= "" and VRT.Scanner.Strategies[actionType] then
+                local bind = VRT.Scanner.ResolveKeyBind(barPrefix, i)
+                local localizedName = VRT.Scanner.Tooltip.ResolveLocalizedName(slotID)
                 
-                if actionType and actionType ~= "" and VRT.Scanner.Strategies[actionType] then
-                    local bind = VRT.Scanner.ResolveKeyBind(barPrefix, i)
-                    local localizedName = VRT.Scanner.Tooltip.ResolveLocalizedName(slotID)
-                    
-                    local mapKey, mapBind = VRT.Scanner.Strategies[actionType](id, bind, barPrefix, i, localizedName)
-                    
-                    if mapKey and mapBind then
-                        idToKeyMap[mapKey] = mapBind
-                    end
+                local mapKey, mapBind = VRT.Scanner.Strategies[actionType](id, bind, barPrefix, i, localizedName)
+                
+                if mapKey and mapBind then
+                    idToKeyMap[mapKey] = mapBind
                 end
             end
         end
