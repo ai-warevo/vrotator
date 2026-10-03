@@ -39,6 +39,16 @@ VRT.RegisterRotation({
             id   = Spell.Combustion,
             cond = nil
         },
+        { 
+            id   = Spell.ManaGemItem, 
+            type = "usable_item",
+            cond = function() 
+                local currentMana = UnitMana("player")
+                local maxMana = UnitManaMax("player")
+                
+                return (maxMana - currentMana) >= 5000
+            end 
+        },
         {
             id   = Spell.Fireball,
             cond = nil
@@ -59,6 +69,19 @@ VRT.RegisterRotation({
             action     = {Spell.ArcaneIntellect, Spell.ArcaneBrilliance, Spell.DalaranIntellect, Spell.DalaranBrilliance},
             onlyMyCast = false,
             extraCond  = nil
+        },
+        {
+            unit       = "player",
+            check      = {},
+            action     = {Spell.ConjureManaGem},
+            onlyMyCast = false,
+            extraCond  = function()
+                local charges = GetItemCount(Spell.ManaGemItem, nil, true) or 0
+                
+                return charges < 3 
+                       and not UnitAffectingCombat("player") 
+                       and VRT.IsSpellReady(Spell.ConjureManaGem)
+            end
         },
         {
             unit       = "focus",

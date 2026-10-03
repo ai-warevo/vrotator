@@ -24,5 +24,8 @@ VRT.Spells.Mage = {
     
     LivingBomb = 55360,
     IcyVeins = 12472,
-    ColdSnap = 11958
+    ColdSnap = 11958,
+
+    ConjureManaGem = 42985,
+    ManaGemItem = 33312,
 }

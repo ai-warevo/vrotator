@@ -93,33 +93,22 @@ function VRT.DetectPlayerSpec()
     return nil
 end
 
-local function ExecutePipelineNode(node)
-    if (node.cond and not node.cond()) or not VRT.IsSpellReady(node.id) then 
-        return false 
-    end
-    
-    local bind = VRT.MyBinds[node.id]
-    if bind then
-        VRT.SendBindSignal(bind)
-        return true
-    end
-    return false
-end
-
 local function IsNodeReady(node)
     if node.type == "item" then
         local itemLink = GetInventoryItemLink("player", node.id)
-        if not itemLink then
-            return false
-        end
-        
-        local hasUseEffect = GetItemSpell(itemLink) 
-        
-        if not hasUseEffect then
+        if not itemLink or not GetItemSpell(itemLink) then
             return false
         end
 
         local start, duration = GetInventoryItemCooldown("player", node.id)
+        return (start == 0 and duration == 0)
+        
+    elseif node.type == "usable_item" then
+        if GetItemCount(node.id) == 0 then 
+            return false 
+        end
+        
+        local start, duration = GetItemCooldown(node.id)
         return (start == 0 and duration == 0)
     else
         local start, duration = GetSpellCooldown(node.id)
@@ -141,7 +130,8 @@ function VRT.RegisterRotation(config)
                 local node = config.combatPipeline[i]
                 
                 if not (node.cond and not node.cond()) and IsNodeReady(node) then
-                    local bindKey = node.type == "item" and ("item:" .. node.id) or node.id
+                    local isItemType = (node.type == "item" or node.type == "usable_item")
+                    local bindKey = isItemType and ("item:" .. node.id) or node.id
                     local bind = VRT.MyBinds[bindKey]
                     
                     if bind then
@@ -154,20 +144,17 @@ function VRT.RegisterRotation(config)
         end
     end
 
-    -- 2. Автоматическая сборка менеджмента баффов (Buffs Pipeline)
     if config.buffsPipeline then
         instance.Buffs = function()
             for i = 1, #config.buffsPipeline do
                 local node = config.buffsPipeline[i]
                 
-                -- Если для баффа заданы внешние условия (например, проверка фокуса для Focus Magic)
                 local extraCond = true
                 if node.extraCond and not node.extraCond() then
                     extraCond = false
                 end
                 
                 if extraCond then
-                    -- Дергаем нашего универсального робота проверки баффов
                     if VRT.CheckBuffAndSend(node.unit, node.check, node.action, node.onlyMyCast) then
                         return true
                     end
@@ -175,11 +162,9 @@ function VRT.RegisterRotation(config)
             end
             return false
         end
-    -- Запасной вариант, если кто-то захочет написать баффы старой кастомной функцией
     elseif config.buffs then
         instance.Buffs = config.buffs
     end
 
-    -- Регистрируем готовый инстанс в ядре аддона
     VRT.Rotations[config.name] = instance
 end
