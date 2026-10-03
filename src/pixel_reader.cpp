@@ -1,34 +1,36 @@
-/*
-## 5. src/pixel_reader.cpp (Реализация захвата пикселя через GDI)
-
-* Зона ответственности: Взаимодействие с интерфейсом графических устройств Windows (Graphics Device Interface).
-* Что должен делать:
-1. При первом вызове захватывать контекст устройства всего экрана (HDC) через низкоуровневый вызов GetDC(NULL).
-   2. Считывать цвет в абсолютных экранных координатах (0, 0) (верхний левый угол монитора, где аддон рисует пиксель) с помощью сверхбыстрой функции GetPixel().
-   3. Кэшировать дескриптор HDC в памяти процесса для исключения утечек ресурсов и просадок производительности.
-   4. Обеспечивать корректное освобождение контекста ReleaseDC при деструктуризации или закрытии программы.
-*/
-
 #include "pixel_reader.hpp"
 #include "config.hpp"
 
 namespace VRT::PixelReader {
 
-    // Внутренний RAII-класс для жесткой привязки к контексту игрового окна
+namespace {
+
+    /**
+     * @class GameWindowContextWrapper
+     * @brief RAII wrapper for managing the lifecycle of the target game window's device context (HDC).
+     */
     class GameWindowContextWrapper {
     public:
-        GameWindowContextWrapper() {
+        GameWindowContextWrapper() noexcept {
             InitializeContext();
         }
 
-        ~GameWindowContextWrapper() {
+        ~GameWindowContextWrapper() noexcept {
             ReleaseContext();
         }
 
-        HDC GetContext() {
-            // Проверяем валидность хэндла окна. Если игра была перезапущена,
-            // или хэндл инвалидировался — переинициализируем контекст на лету
-            if (!m_hwnd || !IsWindow(m_hwnd)) {
+        // Prevent copying and moving to ensure exclusive resource ownership Invariant
+        GameWindowContextWrapper(const GameWindowContextWrapper&) = delete;
+        GameWindowContextWrapper& operator=(const GameWindowContextWrapper&) = delete;
+        GameWindowContextWrapper(GameWindowContextWrapper&&) = delete;
+        GameWindowContextWrapper& operator=(GameWindowContextWrapper&&) = delete;
+
+        /**
+         * @brief Validates the active window state and recovers the graphics handle if invalid.
+         * @return A calibrated and ready Win32 Device Context pointer (HDC).
+         */
+        [[nodiscard]] HDC GetContext() noexcept {
+            if (!m_hwnd || !::IsWindow(m_hwnd)) {
                 ReleaseContext();
                 InitializeContext();
             }
@@ -39,35 +41,37 @@ namespace VRT::PixelReader {
         HWND m_hwnd = nullptr;
         HDC  m_hdc  = nullptr;
 
-        void InitializeContext() {
-            // Ищем окно по строгому имени из конфигурационного манифеста
-            m_hwnd = FindWindowA(NULL, Config::TARGET_WINDOW_TITLE);
+        void InitializeContext() noexcept {
+            m_hwnd = ::FindWindowA(nullptr, Config::TARGET_WINDOW_TITLE);
             if (m_hwnd) {
-                // Получаем DC не всего экрана, а конкретно клиентской области игры
-                m_hdc = GetDC(m_hwnd);
+                // Safely grab the DC of the client workspace area instead of the absolute display surface
+                m_hdc = ::GetDC(m_hwnd);
             }
         }
 
-        void ReleaseContext() {
+        void ReleaseContext() noexcept {
             if (m_hdc && m_hwnd) {
-                ReleaseDC(m_hwnd, m_hdc);
+                ::ReleaseDC(m_hwnd, m_hdc);
             }
             m_hwnd = nullptr;
             m_hdc = nullptr;
         }
     };
 
-    COLORREF ReadSignalPixel() {
-        // Кэшируем контекст игрового окна в памяти процесса (Meyers Singleton)
-        static GameWindowContextWrapper windowContext;
-        HDC hdc = windowContext.GetContext();
+} // namespace
 
-        if (!hdc) {
-            return RGB(0, 0, 0); // Окно игры не найдено -> возвращаем черный цвет (IDLE)
-        }
+COLORREF ReadSignalPixel() {
+    // Globally cached thread-safe instance framework (Meyers Singleton Pattern)
+    static GameWindowContextWrapper windowContext;
+    const HDC hdc = windowContext.GetContext();
 
-        // Считываем цвет из безопасного центра матрицы 5х5 (смещение на 2 пикселя внутрь).
-        // Теперь координаты (2,2) аппаратно привязаны к внутренней графике WoW.
-        return GetPixel(hdc, 2, 2);
+    // Fallback protection: Return absolute black if target execution workspace handle is missing
+    if (!hdc) {
+        return RGB(0, 0, 0);
     }
+
+    // High-performance microsecond extraction target boundary shifting into matrix center safe zones (2,2)
+    return ::GetPixel(hdc, 2, 2);
 }
+
+} // namespace VRT::PixelReader
