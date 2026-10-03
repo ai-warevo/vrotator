@@ -57,7 +57,7 @@ end
 function VRT.State.IsGCD()
     if not VRT.Spells or not VRT.Spells.GCD then return false end
     local start, duration = GetSpellCooldown(VRT.Spells.GCD)
-    return (start > 0 and duration > 0 and duration <= 1.5)
+    return (start > 0 and duration > 0 and duration <= 2.0)
 end
 
 ---
