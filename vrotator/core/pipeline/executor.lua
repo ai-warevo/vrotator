@@ -46,11 +46,16 @@ function VRT.Pipeline.Executor.ExecutePipelineNode(node)
     end
 
     if VRT.State.IsCastingOrChanneling() then
-        local castingName, _, _, _, endTime = UnitCastingInfo("player")
-        if castingName then
+        local name, _, _, _, endTime = UnitCastingInfo("player")
+        
+        if not name then
+            name, _, _, _, endTime = UnitChannelInfo("player")
+        end
+
+        if name and endTime then
             local remainingTime = (endTime / 1000) - GetTime()
             if remainingTime > 0.30 then
-                return false -- Еще кастуем, до конца далеко
+                return false
             end
         else
             return false
