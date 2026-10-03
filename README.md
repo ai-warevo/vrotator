@@ -2,6 +2,24 @@
 
 An enterprise-grade, ultra-low-latency automation ecosystem designed for MMORPG client optimization. The framework bridges pure in-game runtime data extraction via a decoupled Lua subsystem with a compiled native Windows background worker using an asynchronous, non-IPC, high-speed RGB visual signaling protocol.
 
+---
+
+## ⚖️ LEGAL, SAFETY & ANTI-CHEAT DISCLAIMER (MIT LICENSE INVARIANT)
+
+> **⚠️ CRITICAL NOTICE — READ CAREFULLY BEFORE DEPLOYING THIS ARCHITECTURE**
+> 
+> This repository and all compiled/interpreted codebase assets contained herein are provided strictly for **educational, architectural analysis, and research purposes only**. 
+> 
+> By compiling, launching, or interacting with the `vRotator` framework, you explicitly acknowledge and agree to the following terms:
+> 
+> 1. **No Affiliation & Fair Use:** This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Blizzard Entertainment, Inc., or any of its subsidiaries or affiliates. All product and company names are trademarks™ or registered® trademarks of their respective holders.
+> 2. **Anti-Cheat & Account Security Risks:** Automated client progression, frame sampling, and hardware injection techniques may violate the End User License Agreement (EULA) or Terms of Service (ToS) of commercial MMORPG environments. Use of this software carries an inherent risk of permanent account termination, software bans, or hardware profiling flags. The authors assume **absolute zero liability** for any punitive actions executed by anti-cheat telemetry algorithms.
+> 3. **Hardware Emulation Control Warning:** The `vrotator_clicker` application utilizes low-level Win32 `SendInput` routines to preempt the operating system keyboard ring buffer. Misconfiguration or execution loops under hyper-accelerated poll rates can result in localized OS lockups, keystroke flooding, or input driver freezing.
+> 4. **WARRANTY EXCLUSION (As-Is Basis):** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+
 ## 🚀 Quick Start & Compilation
 
 ### Local Visual Studio & CMake Setup
