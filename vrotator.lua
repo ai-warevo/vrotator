@@ -1,21 +1,17 @@
 VRT = VRT or {}
 local frame = CreateFrame("Frame")
-
 local buffTimeElapsed = 0
 
 local function OnUpdateBuffs(self, elapsed)
-    if VRT.IsCastingOrChanneling() then
-        return
-    end
+    if VRT.IsCastingOrChanneling() then return end
 
     buffTimeElapsed = buffTimeElapsed + elapsed
     
     if buffTimeElapsed >= 1.0 then
         buffTimeElapsed = 0
         
-        if not UnitAffectingCombat("player")
-            and VRT.CurrentRotation.Buffs then
-            VRT.CurrentRotation.Buffs()
+        if not (not UnitAffectingCombat("player") and VRT.CurrentRotation.Buffs and VRT.CurrentRotation.Buffs()) then
+            VRT.SetSignalColor(0, 0, 0)
         end
     end
 end
