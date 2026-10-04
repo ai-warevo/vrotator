@@ -68,3 +68,10 @@ function VRT.State.IsCastingOrChanneling()
     return (UnitCastingInfo("player") or UnitChannelInfo("player")) and true or false
 end
 
+---
+-- @public Movement Sensor Hook
+-- @return boolean true if the player character is currently moving.
+---
+function VRT.State.IsMoving()
+    return (GetUnitSpeed("player") or 0) > 0
+end

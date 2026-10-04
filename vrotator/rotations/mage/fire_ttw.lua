@@ -13,6 +13,8 @@ local FireTTWCoreCombat = {
             return not VRT.State.HasDebuff("target", Spell.LivingBomb, true) 
         end
     },
+    VRT.Spells.Mage.Movement.FireBlast,
+    VRT.Spells.Mage.Movement.IceLance,
     {
         id   = Spell.ScorchSpell,
         cond = function() 

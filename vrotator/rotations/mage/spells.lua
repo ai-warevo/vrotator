@@ -17,6 +17,8 @@ VRT.Spells.Mage = VRT.Spells.Mage or {
     Pyroblast = 42891,
     Fireball = 42833,
     FrostfireBolt = 47610,
+    FireBlast = 42873,
+    IceLance  = 42914,
     
     ScorchSpell = 42859,
     ScorchDebuff = 22959,
@@ -65,6 +67,17 @@ VRT.Spells.Mage.Recovery = VRT.Spells.Mage.Recovery  or {
             return false
         end
     }
+}
+
+VRT.Spells.Mage.Movement = VRT.Spells.Mage.Movement or {}
+VRT.Spells.Mage.Movement.FireBlast = VRT.Spells.Mage.Movement.FireBlast or {
+    id   = VRT.Spells.Mage.FireBlast,
+    cond = function() return VRT.State.IsMoving() end
+}
+
+VRT.Spells.Mage.Movement.IceLance = VRT.Spells.Mage.Movement.IceLance or {
+    id   = VRT.Spells.Mage.IceLance,
+    cond = function() return VRT.State.IsMoving() end
 }
 
 VRT.Spells.Mage.CommonBuffs = VRT.Spells.Mage.CommonBuffs or {
