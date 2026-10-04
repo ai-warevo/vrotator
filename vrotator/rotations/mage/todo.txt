@@ -3,7 +3,6 @@
 
 minmax?: на ходу Ice Lance либо Fire Blast
 
-evocation ???
 
 
 

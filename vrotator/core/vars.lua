@@ -3,6 +3,11 @@ VRT.CurrentRotation = VRT.CurrentRotation or {}
 VRT.DebugMode = true
 VRT.Rotations = VRT.Rotations or {}
 VRT.Spells = VRT.Spells or {}
+VRT.Spells.CommonBurst = VRT.Spells.CommonBurst or {
+    { id = 13, type = "item", cond = nil }, -- Trinket Slot 1
+    { id = 14, type = "item", cond = nil }, -- Trinket Slot 2
+    { id = 10, type = "item", cond = nil }, -- Gloves Slot (Engineering Accelerators)
+}
 
 -- https://www.wowhead.com/wotlk/spell=61304/global-cooldown
 VRT.Spells.GCD = 61304

@@ -63,3 +63,24 @@ function VRT.Pipeline.RegisterRotation(config)
 
     VRT.Rotations[config.name] = instance
 end
+
+---
+-- @public Zero-Overhead Pipeline Compiler Matrix
+-- @param ... table List of sequential arrays to merge into a single flat execution pipeline.
+-- @return table Combined flat array ready for executor consumption.
+---
+function VRT.Pipeline.Merge(...)
+    local compiledPipeline = {}
+    local subPipelines = {...}
+    
+    for i = 1, #subPipelines do
+        local currentSub = subPipelines[i]
+        if currentSub then
+            for j = 1, #currentSub do
+                table.insert(compiledPipeline, currentSub[j])
+            end
+        end
+    end
+    
+    return compiledPipeline
+end
