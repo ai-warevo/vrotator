@@ -1,4 +1,5 @@
 #include "input_engine.hpp"
+#include "vrt_utils.hpp"
 #include <windows.h>
 #include <array>
 
@@ -15,7 +16,7 @@ namespace {
         INPUT input{};
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = vk;
-        input.ki.wScan = static_cast<WORD>(::MapVirtualKeyA(vk, MAPVK_VK_TO_VSC));
+        input.ki.wScan = static_cast<WORD>(::MapVirtualKeyA(vk, MAPVK_TO_VSC));
         input.ki.dwFlags = flags;
         input.ki.time = 0;
         input.ki.dwExtraInfo = 0;
@@ -75,6 +76,24 @@ void SendHardwareInput(const int keyCode, const int modifierCode) {
     if (hasShift) releaseEvents[releaseCount++] = BuildKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP);
 
     DispatchInputBatch(releaseEvents.data(), releaseCount);
+}
+
+void Dispatch(const SignalAction& action) {
+    // Log the execution using the utility functions
+    VRT::Utils::PrintLogTimestamp();
+    
+    std::string modStr = "";
+    if (action.modifiers & 1) modStr += "SHIFT-";
+    if (action.modifiers & 2) modStr += "CTRL-";
+    if (action.modifiers & 4) modStr += "ALT-";
+
+    std::array<char, 16> keyNameBuffer{};
+    std::string_view keyName = VRT::Utils::ResolveKeyName(action.keyCode, keyNameBuffer);
+
+    std::cout << "[EXECUTE] Discrete click executed -> Combo: (" << modStr << keyName 
+              << ") | Key Code: " << action.keyCode << " | Modifier Mask: " << action.modifiers << std::endl;
+
+    SendHardwareInput(action.keyCode, action.modifiers);
 }
 
 #ifdef ENABLE_VROTATOR_TESTS
