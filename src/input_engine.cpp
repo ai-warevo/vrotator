@@ -32,9 +32,28 @@ namespace {
             ::SendInput(count, data, sizeof(INPUT));
         }
     }
+
+    /**
+     * @brief High-resolution precision delay using a spin-wait loop.
+     * @param milliseconds The desired delay in milliseconds.
+     */
+    void SpinWait(double milliseconds) noexcept {
+        if (milliseconds <= 0.0) return;
+
+        LARGE_INTEGER frequency, start, end;
+        ::QueryPerformanceFrequency(&frequency);
+        ::QueryPerformanceCounter(&start);
+
+        const double targetTicks = (milliseconds / 1000.0) * static_cast<double>(frequency.QuadPart);
+        const long long targetEndTicks = start.QuadPart + static_cast<long long>(targetTicks);
+
+        do {
+            ::QueryPerformanceCounter(&end);
+        } while (end.QuadPart < targetEndTicks);
+    }
 } // namespace
 
-void SendHardwareInput(const int keyCode, const int modifierCode) {
+void SendHardwareInput(const int keyCode, const int modifierCode, double delayMs) {
     if (keyCode <= 0) {
         return;
     }
@@ -46,35 +65,49 @@ void SendHardwareInput(const int keyCode, const int modifierCode) {
     const bool hasCtrl  = (modifierCode & 2) != 0;
     const bool hasAlt   = (modifierCode & 4) != 0;
 
-    // Hard ceiling architecture constraint: Maximum potential sequence allocations per transactional window
-    constexpr size_t kMaxEventsPerBatch = 4;
-    
-    // Performance Optimization: Eradicate heap page faults by allocating frames inside standard execution stacks
-    std::array<INPUT, kMaxEventsPerBatch> pressEvents{};
-    UINT pressCount = 0;
+    /**
+     * @brief Helper to populate an input array with a sequence of Down or Up events.
+     * Maintains "Inverted Topology" for UP events to ensure system-level stability.
+     */
+    auto FillSequence = [&](INPUT* arr, UINT& count, bool isUp) {
+        if (!isUp) {
+            // Sequence: Modifiers -> Target Key
+            if (hasShift) arr[count++] = BuildKeyEvent(VK_SHIFT, 0);
+            if (hasCtrl)  arr[count++] = BuildKeyEvent(VK_CONTROL, 0);
+            if (hasAlt)   arr[count++] = BuildKeyEvent(VK_MENU, 0);
+            arr[count++] = BuildKeyEvent(targetVKey, 0);
+        } else {
+            // Sequence: Target Key -> Modifiers (Inverted topology)
+            arr[count++] = BuildKeyEvent(targetVKey, KEYEVENTF_KEYUP);
+            if (hasAlt)   arr[count++] = BuildKeyEvent(VK_MENU, KEYEVENTF_KEYUP);
+            if (hasCtrl)  arr[count++] = BuildKeyEvent(VK_CONTROL, KEYEVENTF_KEYUP);
+            if (hasShift) arr[count++] = BuildKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP);
+        }
+    };
 
-    // Sequential Hardware Down Matrix State Ingestion
-    if (hasShift) pressEvents[pressCount++] = BuildKeyEvent(VK_SHIFT, 0);
-    if (hasCtrl)  pressEvents[pressCount++] = BuildKeyEvent(VK_CONTROL, 0);
-    if (hasAlt)   pressEvents[pressCount++] = BuildKeyEvent(VK_MENU, 0);
-    pressEvents[pressCount++] = BuildKeyEvent(targetVKey, 0);
+    if (delayMs <= 0.0) {
+        // [OPTIMIZATION]: Batching - Single atomic syscall containing both DOWN and UP events.
+        std::array<INPUT, 8> eventSequence{};
+        UINT eventCount = 0;
 
-    // Atomically commit keyboard preemption hooks into native desktop threads
-    DispatchInputBatch(pressEvents.data(), pressCount);
+        FillSequence(eventSequence.data(), eventCount, false); // Press phase
+        FillSequence(eventSequence.data(), eventCount, true);  // Release phase
 
-    // Deterministic hardware hold padding window allowing safe game client internal processing loops
-    ::Sleep(10);
+        DispatchInputBatch(eventSequence.data(), eventCount);
+    } else {
+        // [OPTIMIZATION]: Precision Timing - High-res spin-wait between two distinct batches.
+        std::array<INPUT, 4> pressEvents{};
+        UINT pressCount = 0;
+        FillSequence(pressEvents.data(), pressCount, false);
+        DispatchInputBatch(pressEvents.data(), pressCount);
 
-    std::array<INPUT, kMaxEventsPerBatch> releaseEvents{};
-    UINT releaseCount = 0;
+        SpinWait(delayMs);
 
-    // Sequential Hardware Up Matrix State Ingestion (Inverted topology eliminates system sticky modifications)
-    releaseEvents[releaseCount++] = BuildKeyEvent(targetVKey, KEYEVENTF_KEYUP);
-    if (hasAlt)   releaseEvents[releaseCount++] = BuildKeyEvent(VK_MENU, KEYEVENTF_KEYUP);
-    if (hasCtrl)  releaseEvents[releaseCount++] = BuildKeyEvent(VK_CONTROL, KEYEVENTF_KEYUP);
-    if (hasShift) releaseEvents[releaseCount++] = BuildKeyEvent(VK_SHIFT, KEYEVENTF_KEYUP);
-
-    DispatchInputBatch(releaseEvents.data(), releaseCount);
+        std::array<INPUT, 4> releaseEvents{};
+        UINT releaseCount = 0;
+        FillSequence(releaseEvents.data(), releaseCount, true);
+        DispatchInputBatch(releaseEvents.data(), releaseCount);
+    }
 }
 
 #ifdef ENABLE_VROTATOR_TESTS
