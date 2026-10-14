@@ -5,32 +5,28 @@
 #include <array>
 #include <cstdio>
 #include <string>
+#include <thread>
+#include <atomic>
+#include <cstring>
 #include "config.hpp"
 #include "window_manager.hpp"
 #include "pixel_reader.hpp"
 #include "input_engine.hpp"
+#include "telemetry_queue.hpp"
 
 namespace VRT {
+    SPSCQueue<4096> g_telemetryQueue;
+    std::atomic<bool> g_keepRunning{true};
+}
+
 namespace {
 
     /**
-     * @struct EngineState
-     * @brief Holds runtime context to decouple execution variables between decoupled steps.
-     */
-    struct EngineState {
-        bool lastFocusState = false;
-        COLORREF lastColor = RGB(0, 0, 0);
-        COLORREF lastExecutedColor = RGB(0, 0, 0);
-        bool firstRun = true;
-    };
-
-    /**
-     * @brief High-performance timestamp writer pulling ticks from standard stack registers.
+     * @brief High-performance timestamp writer pulled by the consumer thread.
      */
     void PrintLogTimestamp() noexcept {
         SYSTEMTIME st;
         ::GetLocalTime(&st);
-        
         std::array<char, 16> buffer{};
         const int written = std::snprintf(buffer.data(), buffer.size(), "[%02d:%02d:%02d.%03d] ", 
                                           st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
@@ -47,12 +43,12 @@ namespace {
             const int written = std::snprintf(safeBuffer.data(), safeBuffer.size(), "F%d", vkCode - VK_F1 + 1);
             return std::string_view(safeBuffer.data(), static_cast<size_t>(written));
         }
-        
+
         if ((vkCode >= '0' && vkCode <= '9') || (vkCode >= 'A' && vkCode <= 'Z')) {
             safeBuffer[0] = static_cast<char>(vkCode);
             return std::string_view(safeBuffer.data(), 1);
         }
-        
+
         if (vkCode >= 'a' && vkCode <= 'z') {
             safeBuffer[0] = static_cast<char>(::toupper(vkCode));
             return std::string_view(safeBuffer.data(), 1);
@@ -72,14 +68,79 @@ namespace {
     }
 
     /**
+     * @brief Background consumer thread for handling all telemetry and I/O.
+     */
+    void TelemetryConsumer() {
+        VRT::TelemetryPacket packet;
+        while (VRT::g_keepRunning || VRT::g_telemetryQueue.pop(packet)) {
+            if (VRT::g_telemetryQueue.pop(packet)) {
+                PrintLogTimestamp();
+
+                switch (packet.type) {
+                    case VRT::TelemetryEventType::FocusChange:
+                        std::cout << "[FOCUS CHANGE] Target window active: " 
+                                  << (packet.focusChange.focusActive ? "YES (Processing)" : "NO (Sleeping)") << std::endl;
+                        break;
+                    case VRT::TelemetryEventType::PixelState: {
+                        COLORREF color = packet.pixelState.color;
+                        int r = GetRValue(color);
+                        int g = GetGValue(color);
+                        int b = GetBValue(color);
+                        std::cout << "[PIXEL STATE] Raw Hex: 0x" << std::uppercase << std::setfill('0') << std::setw(6) << std::hex << color << std::dec
+                                  << " | R (Key): " << r << " | G (Mods): " << g << " | B (Valid): " << b;
+
+                        if (b != 255)       std::cout << " -> [IDLE: B != 255]";
+                        else if (r == 0)    std::cout << " -> [IDLE: R == 0 (No Action)]";
+                        else                std::cout << " -> [VALID SIGNAL FOUND!]";
+                        std::cout << std::endl;
+                        break;
+                    }
+                    case VRT::TelemetryEventType::HardwareAction: {
+                        std::array<char, 16> keyBuf{};
+                        std::string_view keyName = ResolveKeyName(packet.hardwareAction.key_r, keyBuf);
+                        std::string modStr = "";
+                        if (packet.hardwareAction.key_g & 1) modStr += "SHIFT-";
+                        if (packet.hardwareAction.key_g & 2) modStr += "CTRL-";
+                        if (packet.hardwareAction.key_g & 4) modStr += "ALT-";
+
+                        std::cout << "[EXECUTE] Discrete click executed -> Combo: (" << modStr << keyName 
+                                  << ") | Key Code: " << packet.hardwareAction.key_r 
+                                  << " | Modifier Mask: 0x" << std::hex << packet.hardwareAction.key_g << std::dec << std::endl;
+                        break;
+                    }
+                    case VRT::TelemetryEventType::SystemLog:
+                        std::cout << packet.systemLog.message << std::endl;
+                        break;
+                }
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+    }
+
+    /**
+     * @struct EngineState
+     */
+    struct EngineState {
+        bool lastFocusState = false;
+        COLORREF lastColor = RGB(0, 0, 0);
+        COLORREF lastExecutedColor = RGB(0, 0, 0);
+        bool firstRun = true;
+    };
+
+    /**
      * @brief Emits a decoupled notification string whenever process visibility focus updates.
      */
     void TrackFocusState(const bool currentFocus, EngineState& state) noexcept {
         if (currentFocus == state.lastFocusState && !state.firstRun) {
             return;
         }
-        PrintLogTimestamp();
-        std::cout << "[FOCUS CHANGE] Target window active: " << (currentFocus ? "YES (Processing)" : "NO (Sleeping)") << std::endl;
+        VRT::TelemetryPacket p{};
+        p.timestamp = GetTickCount64();
+        p.type = VRT::TelemetryEventType::FocusChange;
+        p.focusChange.focusActive = currentFocus;
+        VRT::g_telemetryQueue.push(p);
+
         state.lastFocusState = currentFocus;
     }
 
@@ -100,56 +161,72 @@ namespace {
         if (color == state.lastColor && !state.firstRun) {
             return;
         }
-        PrintLogTimestamp();
-        std::cout << "[PIXEL STATE] Raw Hex: 0x" << std::uppercase << std::setfill('0') << std::setw(6) << std::hex << color << std::dec
-                  << " | R (Key): " << r << " | G (Mods): " << g << " | B (Valid): " << b;
-        
-        if (b != 255)       std::cout << " -> [IDLE: B != 255]";
-        else if (r == 0)    std::cout << " -> [IDLE: R == 0 (No Action)]";
-        else                std::cout << " -> [VALID SIGNAL FOUND!]";
-        std::cout << std::endl;
-        
+        VRT::TelemetryPacket p{};
+        p.timestamp = GetTickCount64();
+        p.type = VRT::TelemetryEventType::PixelState;
+        p.pixelState.color = color;
+        VRT::g_telemetryQueue.push(p);
+
         state.lastColor = color;
     }
 
     /**
      * @brief Injects keyboard events into standard thread ring rings upon context changes.
      */
-    void DispatchHardwareAction(const int r, const int g, const int modifierCode) noexcept {
-        std::string modStr = "";
-        if (g & 1) modStr += "SHIFT-";
-        if (g & 2) modStr += "CTRL-";
-        if (g & 4) modStr += "ALT-";
+    void DispatchHardwareAction(const int r, const int g) noexcept {
+        VRT::TelemetryPacket p{};
+        p.timestamp = GetTickCount64();
+        p.type = VRT::TelemetryEventType::HardwareAction;
+        p.hardwareAction.key_r = r;
+        p.hardwareAction.key_g = g;
+        VRT::g_telemetryQueue.push(p);
 
-        std::array<char, 16> keyNameBuffer{};
-        std::string_view keyName = ResolveKeyName(r, keyNameBuffer);
-
-        PrintLogTimestamp();
-        std::cout << "[EXECUTE] Discrete click executed -> Combo: (" << modStr << keyName 
-                  << ") | Key Code: " << r << " | Modifier Mask: " << g << std::endl;
-    
         InputEngine::SendHardwareInput(r, g);
     }
 
+    void LogSystemMessage(const char* msg) noexcept {
+        VRT::TelemetryPacket p{};
+        p.timestamp = GetTickCount64();
+        p.type = VRT::TelemetryEventType::SystemLog;
+        std::strncpy(p.systemLog.message, msg, 63);
+        p.systemLog.message[63] = '\0'; // Ensure null termination
+        VRT::g_telemetryQueue.push(p);
+    }
+
 } // namespace
+
 } // namespace VRT
 
 int main() {
-    std::cout << "==========================================================" << std::endl;
-    VRT::PrintLogTimestamp(); std::cout << "--- vROTATOR MULTI-MODULE AUTOMATION KERNEL BOOTED ---" << std::endl;
-    std::cout << "==========================================================" << std::endl;
+    // Start telemetry thread
+    std::thread telemetryThread(VRT::TelemetryConsumer);
+
+    LogSystemMessage("==========================================================");
+    LogSystemMessage("--- vROTATOR MULTI-MODULE AUTOMATION KERNEL BOOTED ---");
+    LogSystemMessage("==========================================================");
     
-    VRT::PrintLogTimestamp(); std::cout << "[INIT] Target Environment Spec: " << VRT::Config::TARGET_WINDOW_TITLE << std::endl;
-    VRT::PrintLogTimestamp(); std::cout << "[INIT] Enforce Focus Security:  " << (VRT::Config::ENFORCE_WINDOW_FOCUS ? "ENABLED" : "DISABLED") << std::endl;
-    VRT::PrintLogTimestamp(); std::cout << "[INIT] Hardware Termination Key: F" << (VRT::Config::EMERGENCY_EXIT_HOTKEY - VK_F1 + 1) << std::endl;
-    VRT::PrintLogTimestamp(); std::cout << "[STATUS] Scanning pipeline initialized. Awaiting game signal...\n" << std::endl;
+    // Wait a bit for consumer to catch up so boot logs are printed
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    char buf[128];
+    std::snprintf(buf, sizeof(buf), "[INIT] Target Environment Spec: %s", VRT::Config::TARGET_WINDOW_TITLE);
+    LogSystemMessage(buf);
+
+    std::snprintf(buf, sizeof(buf), "[INIT] Enforce Focus Security:  %s", (VRT::Config::ENFORCE_WINDOW_FOCUS ? "ENABLED" : "DISABLED"));
+    LogSystemMessage(buf);
+
+    std::snprintf(buf, sizeof(buf), "[INIT] Hardware Termination Key: F%d", (VRT::Config::EMERGENCY_EXIT_HOTKEY - VK_F1 + 1));
+    LogSystemMessage(buf);
+
+    LogSystemMessage("[STATUS] Scanning pipeline initialized. Awaiting game signal...");
+    LogSystemMessage("");
 
     VRT::EngineState state{};
 
     while (true) {
         if (::GetAsyncKeyState(VRT::Config::EMERGENCY_EXIT_HOTKEY) & 0x8000) {
-            std::cout << "\n";
-            VRT::PrintLogTimestamp(); std::cout << "[HALT] Emergency interrupt signal caught. Halting execution tree." << std::endl;
+            LogSystemMessage("");
+            LogSystemMessage("[HALT] Emergency interrupt signal caught. Halting execution tree.");
             break;
         }
 
@@ -183,7 +260,7 @@ int main() {
             continue;
         }
 
-        VRT::DispatchHardwareAction(r, g, color);
+        VRT::DispatchHardwareAction(r, g);
     
         state.lastExecutedColor = color;
         currentFrameDelay = VRT::Config::INPUT_COOL_DOWN_MS;
@@ -193,6 +270,10 @@ int main() {
         }
     }
 
-    VRT::PrintLogTimestamp(); std::cout << "[SHUTDOWN] Core systems unlinked. Safe exit status confirmed." << std::endl;
+    LogSystemMessage("[SHUTDOWN] Core systems unlinked. Safe exit status confirmed.");
+    
+    VRT::g_keepRunning = false;
+    telemetryThread.join();
+
     return 0;
 }
